@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Rofan Visualboard",
+  "version": "0.2.0",
+  "permissions": [
+    "tabs",
+    "sidePanel",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://rofan.ai/*",
+    "https://rofan.world/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://rofan.ai/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "action": {
+    "default_title": "Open Visualboard"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  }
+}

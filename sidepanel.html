@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rofan Visualboard</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      width: 100%;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    .notice-box {
+      font-size: 12px;
+      padding: 8px 10px;
+      background: #f3faf8;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      color: #333;
+      line-height: 1.4;
+    }
+    
+    .control-bar {
+      padding: 12px;
+      background-color: #f5f5f5;
+      border-bottom: 1px solid #ddd;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    
+    .provider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    
+    .provider-row label {
+      font-size: 12px;
+      color: #666;
+      min-width: 100px;
+    }
+    
+    .rv-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      cursor: pointer;
+    }
+    
+    .rv-toggle input[type="checkbox"] {
+      display: none;
+    }
+    
+    .rv-toggle-slider {
+      width: 40px;
+      height: 20px;
+      background-color: #ccc;
+      border-radius: 20px;
+      position: relative;
+      transition: background-color 0.3s;
+    }
+    
+    .rv-toggle input[type="checkbox"]:checked + .rv-toggle-slider {
+      background-color: #4CAF50;
+    }
+    
+    .rv-toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background-color: white;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s;
+    }
+    
+    .rv-toggle input[type="checkbox"]:checked + .rv-toggle-slider::before {
+      transform: translateX(20px);
+    }
+    
+    .rv-toggle-label {
+      font-size: 12px;
+      color: #666;
+    }
+    
+    #provider-select {
+      flex: 1;
+      padding: 6px 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+      background-color: white;
+    }
+    
+    .beta-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: #ffe5b0;
+      color: #8b5a00;
+      font-weight: 500;
+    }
+    
+    .action-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    
+    .primary {
+      padding: 6px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    
+    .primary:hover:not(:disabled) {
+      background-color: #45a049;
+    }
+    
+    .primary:active:not(:disabled) {
+      background-color: #3d8b40;
+    }
+    
+    .primary:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .secondary {
+      padding: 6px 16px;
+      background-color: #ff9800;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    
+    .secondary:hover {
+      background-color: #f57c00;
+    }
+    
+    .secondary:active {
+      background-color: #e65100;
+    }
+    
+    #board-container {
+      margin-top: 12px;
+      flex: 1;
+      min-height: 0;
+      padding: 0 12px 12px;
+    }
+    
+    #visualboard-frame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      border-radius: 12px;
+      background: white;
+    }
+    
+    #dev-tools {
+      padding: 12px;
+      background-color: #f9f9f9;
+      border-top: 1px solid #ddd;
+      display: none;
+    }
+    
+    #dev-tools.visible {
+      display: block;
+    }
+    
+    .dev-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    
+    #rv-toast {
+      position: fixed;
+      bottom: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      z-index: 9999;
+      opacity: 1;
+      transition: opacity 0.3s;
+      pointer-events: none;
+    }
+    
+    .rvb-footer {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-top: 1px solid rgba(0, 0, 0, 0.08);
+      font-size: 10px;
+      color: #999;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      background-color: #fafafa;
+    }
+    
+    .rvb-footer-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .rvb-footer-links {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    
+    .rvb-footer-links a {
+      color: #666;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    
+    .rvb-footer-links a:hover {
+      color: #333;
+      text-decoration: underline;
+    }
+    
+    .rvb-footer-links .separator {
+      color: #ccc;
+    }
+    
+    .rvb-footer-unofficial {
+      color: #999;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+    <!-- 상단 안내 -->
+  <div class="notice-box">
+    이 보드는 현재 브라우저 창의 AI 대화를 시각화합니다. 다른 대화는 새 창에서 열어 사용해 주세요. (Beta)
+    <span id="dev-mode-indicator" style="display: none; margin-left: 8px; color: #ff6b00; font-weight: 600;">[개발자 모드]</span>
+  </div>
+  
+  <!-- 컨트롤 바 -->
+  <div class="control-bar">
+    <div class="provider-row">
+      <label for="provider-select">AI 채팅 서비스:</label>
+      <select id="provider-select">
+        <option value="rofan-ai">로판AI (rofan.ai)</option>
+        <option value="cave-duck" disabled>케이브덕 (준비 중)</option>
+        <option value="teapot" disabled>티팟 (준비 중)</option>
+      </select>
+      <span class="beta-badge">Visualboard β</span>
+    </div>
+    
+    <label class="rv-toggle">
+      <input
+        id="rv-auto-update-toggle"
+        type="checkbox"
+      />
+      <span class="rv-toggle-slider"></span>
+      <span class="rv-toggle-label">자동 업데이트</span>
+    </label>
+    
+    <div class="action-row">
+      <button 
+        id="analyze-last-turn-btn" 
+        class="primary"
+        title="일반 클릭: 보드가 비어있으면 복원, 아니면 최신 분석 | Shift+Click: 강제 재분석"
+      >최근 턴 분석하기</button>
+      <button id="reset-board-btn" class="secondary">보드 초기화</button>
+    </div>
+  </div>
+  
+  <!-- Visualboard 영역 -->
+  <div id="board-container">
+    <iframe
+      id="visualboard-frame"
+      src=""
+      allowfullscreen
+    ></iframe>
+  </div>
+  
+  <!-- 개발자 도구 (DEV_MODE일 때만 표시) -->
+  <section id="dev-tools" style="display: none;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+      <h2 class="dev-title" style="margin: 0;">소설 텍스트 입력 (개발자용)</h2>
+      <button
+        id="dev-mode-toggle"
+        onclick="toggleDevMode()"
+        style="padding: 4px 8px; font-size: 11px; background: #666; color: white; border: none; border-radius: 4px; cursor: pointer;"
+      >
+        개발자 모드 끄기
+      </button>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px;">
+      <textarea
+        id="dev-text-input"
+        placeholder="소설 텍스트를 입력하세요..."
+        style="width: 100%; min-height: 100px; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; resize: vertical;"
+      ></textarea>
+      <button
+        id="dev-analyze-btn"
+        class="primary"
+        style="align-self: flex-start;"
+      >
+        분석하기
+      </button>
+    </div>
+    
+    <!-- 분석 모드 선택 (개발자용) -->
+    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #ddd;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+        <label for="rv-analysis-mode" style="font-size: 12px; color: #666;">분석 모드:</label>
+        <select id="rv-analysis-mode" style="flex: 1; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px;">
+          <option value="last-ai">마지막 턴 모드</option>
+          <option value="selection">선택 텍스트 모드</option>
+        </select>
+      </div>
+      <p style="font-size: 11px; color: #666; line-height: 1.4; margin-top: 4px;">
+        • 마지막 턴 모드: AI의 마지막 답변을 기준으로 무대를 갱신합니다.<br />
+        • 선택 텍스트 모드: 드래그로 선택한 텍스트만 분석해서 무대를 갱신합니다.
+      </p>
+    </div>
+  </section>
+
+  <footer id="rvb-footer" class="rvb-footer">
+    <div class="rvb-footer-row">
+      <span id="rvb-version-label">Rofan Visualboard</span>
+      <span id="rvb-version-value"></span>
+    </div>
+    <div class="rvb-footer-row">
+      <span class="rvb-footer-unofficial">Unofficial tool for rofan.ai</span>
+      <div class="rvb-footer-links">
+        <a href="https://rofan.world/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+        <span class="separator">·</span>
+        <a href="https://rofan.world/disclaimer" target="_blank" rel="noopener noreferrer">Disclaimer</a>
+        <span class="separator">·</span>
+        <a href="mailto:moomoojojoyoyo@gmail.com">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

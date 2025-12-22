@@ -1,0 +1,18 @@
+# GPT 대화용 문서 (GitHub에 올리지 않음)
+docs/gpt-conversations/
+
+# 빌드 산출물
+*.zip
+rofan-visualboard-*.zip
+
+# IDE
+.vscode/
+.cursor/
+.cursorrules
+
+# OS
+.DS_Store
+
+# 로그
+*.log
+

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rofan Visualboard - Options</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 24px;
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #f5f5f5;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    
+    h1 {
+      font-size: 24px;
+      margin-bottom: 8px;
+      color: #333;
+    }
+    
+    .subtitle {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 24px;
+    }
+    
+    .section {
+      margin-bottom: 24px;
+    }
+    
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      color: #333;
+    }
+    
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .radio-option:hover {
+      border-color: #4CAF50;
+      background-color: #f9f9f9;
+    }
+    
+    .radio-option input[type="radio"] {
+      margin: 0;
+      cursor: pointer;
+    }
+    
+    .radio-option input[type="radio"]:checked + label {
+      font-weight: 600;
+      color: #4CAF50;
+    }
+    
+    .radio-option:has(input[type="radio"]:checked) {
+      border-color: #4CAF50;
+      background-color: #f0f8f0;
+    }
+    
+    .radio-option label {
+      flex: 1;
+      cursor: pointer;
+      font-size: 14px;
+      color: #333;
+    }
+    
+    .radio-option .description {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+    
+    .save-button {
+      width: 100%;
+      padding: 12px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    
+    .save-button:hover:not(:disabled) {
+      background-color: #45a049;
+    }
+    
+    .save-button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    
+    .message {
+      margin-top: 16px;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      display: none;
+    }
+    
+    .message.success {
+      background-color: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+      display: block;
+    }
+    
+    .message.info {
+      background-color: #d1ecf1;
+      color: #0c5460;
+      border: 1px solid #bee5eb;
+      display: block;
+    }
+    
+    .notice {
+      margin-top: 16px;
+      padding: 12px;
+      background-color: #fff3cd;
+      border: 1px solid #ffc107;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #856404;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Rofan Visualboard 설정</h1>
+    <p class="subtitle">Extension 동작 환경을 선택하세요</p>
+    
+    <div class="section">
+      <div class="section-title">서버 환경</div>
+      <div class="radio-group">
+        <div class="radio-option">
+          <input type="radio" id="env-prod" name="server_env" value="prod" checked>
+          <label for="env-prod">
+            <div>Production (https://rofan.world)</div>
+            <div class="description">일반 사용자용 - 안정적인 프로덕션 서버</div>
+          </label>
+        </div>
+        <div class="radio-option">
+          <input type="radio" id="env-dev" name="server_env" value="dev">
+          <label for="env-dev">
+            <div>Development (http://localhost:3001)</div>
+            <div class="description">개발자용 - 로컬 개발 서버</div>
+          </label>
+        </div>
+      </div>
+    </div>
+    
+    <button id="save-btn" class="save-button">저장</button>
+    
+    <div id="message" class="message"></div>
+    
+    <div class="notice">
+      <strong>참고:</strong> 설정 변경 후 사이드패널을 닫았다가 다시 열면 적용됩니다.
+    </div>
+  </div>
+  
+  <script src="options.js"></script>
+</body>
+</html>
+

@@ -1,0 +1,14 @@
+{
+  "name": "rofan-visualboard-extension",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Chrome extension for visualizing story states from Rofan.ai chat",
+  "scripts": {
+    "version:patch": "node scripts/bumpVersion.mjs patch",
+    "version:minor": "node scripts/bumpVersion.mjs minor",
+    "version:major": "node scripts/bumpVersion.mjs major",
+    "build": "node scripts/buildZip.mjs"
+  }
+}
+
+
