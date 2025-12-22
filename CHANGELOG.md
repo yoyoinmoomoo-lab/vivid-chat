@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.1] - 2024-12-XX
+
+### Fixed
+- Content script auto-injection: Automatically injects content script when "Receiving end does not exist" error occurs
+- Fixed first turn analysis failure due to content script not loaded
+
+### Changed
+- Added "scripting" permission to manifest for dynamic content script injection
+- Improved error handling in service-worker.js for content script connection issues
+
 ## [0.2.0] - 2024-12-XX
 
 ### Added

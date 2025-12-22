@@ -62,23 +62,77 @@ async function handleRequestLastAiMessage(message, sendResponse) {
     );
 
     // NOTE: rofan.ai 채팅 탭의 content script와 메시지 교환을 위해 tabs 권한 필요
+    // content script가 로드되지 않았을 수 있으므로 먼저 메시지 전송 시도
     chrome.tabs.sendMessage(
       tab.id,
       { type: "REQUEST_LAST_AI_MESSAGE", provider: message.provider },
       (response) => {
         if (chrome.runtime.lastError) {
+          const errorMessage = chrome.runtime.lastError.message;
           console.warn(
             "[Rofan Visualboard][service-worker] Error forwarding to content script:",
             {
-              message: chrome.runtime.lastError.message,
+              message: errorMessage,
               tabId: tab.id,
               tabUrl: tab.url
             }
           );
+          
+          // "Receiving end does not exist" 에러인 경우 content script가 로드되지 않은 것
+          // 이 경우 content script를 강제로 주입하고 재시도
+          if (errorMessage.includes("Receiving end does not exist") || 
+              errorMessage.includes("Could not establish connection")) {
+            console.log(
+              "[Rofan Visualboard][service-worker] Content script not loaded, injecting..."
+            );
+            
+            // content script 주입 (manifest에 등록된 content script 재실행)
+            chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ['content.js']
+            }).then(() => {
+              console.log("[Rofan Visualboard][service-worker] Content script injected, retrying...");
+              // 주입 후 약간의 지연을 두고 재시도
+              setTimeout(() => {
+                chrome.tabs.sendMessage(
+                  tab.id,
+                  { type: "REQUEST_LAST_AI_MESSAGE", provider: message.provider },
+                  (retryResponse) => {
+                    if (chrome.runtime.lastError) {
+                      sendResponse({
+                        success: false,
+                        reason: "forward_error_after_injection",
+                        error: chrome.runtime.lastError.message,
+                      });
+                      return;
+                    }
+                    console.log(
+                      "[Rofan Visualboard][service-worker] LAST_AI_MESSAGE response (after injection):",
+                      retryResponse
+                    );
+                    sendResponse(retryResponse);
+                  }
+                );
+              }, 100);
+            }).catch((injectionError) => {
+              console.error(
+                "[Rofan Visualboard][service-worker] Failed to inject content script:",
+                injectionError
+              );
+              sendResponse({
+                success: false,
+                reason: "injection_failed",
+                error: injectionError.message || errorMessage,
+              });
+            });
+            return; // 비동기 처리 중이므로 여기서 반환
+          }
+          
+          // 다른 에러인 경우 그대로 반환
           sendResponse({
             success: false,
             reason: "forward_error",
-            error: chrome.runtime.lastError.message,
+            error: errorMessage,
           });
           return;
         }
