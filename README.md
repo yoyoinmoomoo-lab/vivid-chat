@@ -1,4 +1,4 @@
-# Rofan Visualboard Chrome Extension
+# Vivid Chat Chrome Extension
 
 소설 텍스트를 분석하여 시각화해주는 Chrome Extension입니다.
 

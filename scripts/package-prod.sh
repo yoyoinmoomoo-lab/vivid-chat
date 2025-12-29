@@ -9,7 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 MANIFEST_FILE="$PROJECT_ROOT/manifest.json"
 OUTPUT_DIR="$PROJECT_ROOT/dist"
-ZIP_NAME="rofan-visualboard-prod.zip"
+ZIP_NAME="vivid-chat-prod.zip"
 
 echo "🔍 Production 패키징 시작..."
 

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Rofan Visualboard",
+  "name": "Vivid Chat",
   "version": "0.2.1",
   "permissions": [
     "tabs",
@@ -27,7 +27,7 @@
     "service_worker": "service-worker.js"
   },
   "action": {
-    "default_title": "Open Visualboard"
+    "default_title": "Open Vivid Chat"
   },
   "side_panel": {
     "default_path": "sidepanel.html"

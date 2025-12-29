@@ -1,6 +1,6 @@
 # 배포 가이드
 
-## Rofan Visualboard v0.2.1 배포
+## Vivid Chat v0.2.1 배포
 
 ### 주요 변경사항
 - Content script 자동 주입 기능 추가
@@ -35,7 +35,7 @@
 
 5. **GitHub Release 생성**
    - 태그: v0.2.1
-   - 제목: Rofan Visualboard v0.2.1
+   - 제목: Vivid Chat v0.2.1
    - 설명: Content script 자동 주입 및 첫 턴 분석 문제 해결
 
 ### 사용자 업데이트 안내

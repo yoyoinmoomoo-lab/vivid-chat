@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Rofan Visualboard</title>
+  <title>Vivid Chat</title>
   <style>
     * {
       margin: 0;
@@ -56,7 +56,7 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-top: 8px;
+      margin: 0;
       cursor: pointer;
     }
     
@@ -118,7 +118,9 @@
     
     .action-row {
       display: flex;
+      align-items: center;
       gap: 8px;
+      flex-wrap: wrap;
       margin-top: 8px;
     }
     
@@ -257,15 +259,48 @@
       color: #999;
       font-style: italic;
     }
+    
+    .error-alert {
+      display: none;
+      padding: 0 12px;
+      background-color: #fee;
+      border-bottom: 1px solid #fcc;
+      min-height: 40px;
+    }
+    
+    .error-alert-content {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      font-size: 12px;
+      color: #c33;
+      line-height: 1.4;
+    }
+    
+    .error-alert-close {
+      background: none;
+      border: none;
+      color: #c33;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+      padding: 0;
+      margin-left: 12px;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    
+    .error-alert-close:hover {
+      color: #a00;
+    }
   </style>
 </head>
 <body>
-    <!-- 상단 안내 -->
-  <div class="notice-box">
-    이 보드는 현재 브라우저 창의 AI 대화를 시각화합니다. 다른 대화는 새 창에서 열어 사용해 주세요. (Beta)
-    <span id="dev-mode-indicator" style="display: none; margin-left: 8px; color: #ff6b00; font-weight: 600;">[개발자 모드]</span>
-  </div>
-  
   <!-- 컨트롤 바 -->
   <div class="control-bar">
     <div class="provider-row">
@@ -275,25 +310,24 @@
         <option value="cave-duck" disabled>케이브덕 (준비 중)</option>
         <option value="teapot" disabled>티팟 (준비 중)</option>
       </select>
-      <span class="beta-badge">Visualboard β</span>
+      <span class="beta-badge">Beta</span>
     </div>
     
-    <label class="rv-toggle">
-      <input
-        id="rv-auto-update-toggle"
-        type="checkbox"
-      />
-      <span class="rv-toggle-slider"></span>
-      <span class="rv-toggle-label">자동 업데이트</span>
-    </label>
-    
     <div class="action-row">
+      <label class="rv-toggle">
+        <input
+          id="rv-auto-update-toggle"
+          type="checkbox"
+        />
+        <span class="rv-toggle-slider"></span>
+        <span class="rv-toggle-label">자동 업데이트</span>
+      </label>
       <button 
         id="analyze-last-turn-btn" 
         class="primary"
-        title="일반 클릭: 보드가 비어있으면 복원, 아니면 최신 분석 | Shift+Click: 강제 재분석"
-      >최근 턴 분석하기</button>
-      <button id="reset-board-btn" class="secondary">보드 초기화</button>
+        title="최근 턴 분석하기 - 일반 클릭: 보드가 비어있으면 복원, 아니면 최신 분석 | Shift+Click: 강제 재분석"
+      >분석</button>
+      <button id="reset-board-btn" class="secondary" title="보드 초기화">리셋</button>
     </div>
   </div>
   
@@ -351,7 +385,7 @@
 
   <footer id="rvb-footer" class="rvb-footer">
     <div class="rvb-footer-row">
-      <span id="rvb-version-label">Rofan Visualboard</span>
+      <span id="rvb-version-label">Vivid Chat</span>
       <span id="rvb-version-value"></span>
     </div>
     <div class="rvb-footer-row">
@@ -361,7 +395,7 @@
         <span class="separator">·</span>
         <a href="https://rofan.world/disclaimer" target="_blank" rel="noopener noreferrer">Disclaimer</a>
         <span class="separator">·</span>
-        <a href="mailto:moomoojojoyoyo@gmail.com">Contact</a>
+        <a href="mailto:moomooojojoyoyo@gmail.com">Contact</a>
       </div>
     </div>
   </footer>

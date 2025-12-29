@@ -1,6 +1,6 @@
 // Options Page 로직
 
-console.log('[Rofan Visualboard] Options page loaded');
+console.log('[Vivid Chat] Options page loaded');
 
 // 현재 값 로딩
 chrome.storage.local.get(['server_env'], (result) => {
@@ -9,7 +9,7 @@ chrome.storage.local.get(['server_env'], (result) => {
   if (radio) {
     radio.checked = true;
   }
-  console.log('[Rofan Visualboard] Current server_env:', env);
+  console.log('[Vivid Chat] Current server_env:', env);
 });
 
 // Save 버튼 클릭
@@ -29,7 +29,7 @@ document.getElementById('save-btn').addEventListener('click', () => {
       return;
     }
     
-    console.log('[Rofan Visualboard] server_env saved:', env);
+    console.log('[Vivid Chat] server_env saved:', env);
     
     // 성공 메시지 표시
     showMessage('저장되었습니다. 사이드패널을 다시 열면 적용됩니다.', 'success');
@@ -40,9 +40,9 @@ document.getElementById('save-btn').addEventListener('click', () => {
       (response) => {
         if (chrome.runtime.lastError) {
           // sidepanel이 열려 있지 않으면 에러는 무시
-          console.log('[Rofan Visualboard] ENV_CHANGED message sent (sidepanel may not be open)');
+          console.log('[Vivid Chat] ENV_CHANGED message sent (sidepanel may not be open)');
         } else {
-          console.log('[Rofan Visualboard] ENV_CHANGED message sent, sidepanel will reload');
+          console.log('[Vivid Chat] ENV_CHANGED message sent, sidepanel will reload');
         }
       }
     );

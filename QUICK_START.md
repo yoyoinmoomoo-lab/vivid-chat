@@ -1,4 +1,4 @@
-# Rofan Visualboard - 빠른 시작 가이드
+# Vivid Chat - 빠른 시작 가이드
 
 ## 🎯 프로젝트 목적
 웹페이지에서 소설 텍스트를 선택하면, Chrome Extension을 통해 Next.js 서버로 전송하여 분석하고 시각화하는 시스템.
@@ -45,7 +45,7 @@ test-board/page.tsx (수신 및 표시)
    - `chrome://extensions/` 접속
    - 개발자 모드 ON
    - "압축해제된 확장 프로그램을 로드합니다"
-   - `/Users/sunhapark/프로젝트/Rofan Visualboard/` 선택
+   - `/Users/sunhapark/프로젝트/Vivid Chat/` 선택
 
 3. **테스트**
    - Extension 아이콘 클릭 → 사이드 패널 열림

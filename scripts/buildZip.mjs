@@ -15,7 +15,7 @@ const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
 const version = manifest.version;
 
 // zip 파일명
-const zipFileName = `rofan-visualboard-${version}.zip`;
+const zipFileName = `vivid-chat-${version}.zip`;
 const zipFilePath = join(projectRoot, zipFileName);
 
 console.log(`Building zip file: ${zipFileName}`);

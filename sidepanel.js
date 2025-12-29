@@ -1,4 +1,4 @@
-console.log('[Rofan Visualboard] Side panel script loaded');
+console.log('[Vivid Chat] Side panel script loaded');
 
 // 개발자 모드 플래그 (디버깅 로그 제어)
 const DEV_MODE = false; // true로 설정하면 상세 디버깅 로그 출력
@@ -65,13 +65,13 @@ async function getBaseUrl() {
 async function initializeSidepanel() {
   // baseUrl 로드
   currentBaseUrl = await getBaseUrl();
-  console.log('[Rofan Visualboard] Initialized with baseUrl:', currentBaseUrl);
+  console.log('[Vivid Chat] Initialized with baseUrl:', currentBaseUrl);
   
   // iframe src 설정
   const iframe = document.getElementById('visualboard-frame');
   if (iframe) {
     iframe.src = `${currentBaseUrl}/test-board?embed=1`;
-    console.log('[Rofan Visualboard] Iframe src set to:', iframe.src);
+    console.log('[Vivid Chat] Iframe src set to:', iframe.src);
   }
   
   // Dev 모드 표시 (선택)
@@ -88,7 +88,7 @@ async function restoreLastSuccessOnMount() {
     // 현재 활성 탭의 시나리오 키 가져오기
     const result = await requestLastAiMessageFromContentScript(currentProvider);
     if (!result || !result.scenarioKey) {
-      console.log('[Rofan Visualboard] No scenario key available for auto-restore');
+      console.log('[Vivid Chat] No scenario key available for auto-restore');
       return;
     }
 
@@ -98,7 +98,7 @@ async function restoreLastSuccessOnMount() {
     const lastSuccess = loadLastSuccessRecord(scenarioKey);
     // 핫픽스: lastError 체크 제거 - state가 있으면 복원 (lastError는 재시도 정책에만 사용)
     if (!lastSuccess || !lastSuccess.state) {
-      console.log('[Rofan Visualboard] No valid lastSuccessRecord for auto-restore', {
+      console.log('[Vivid Chat] No valid lastSuccessRecord for auto-restore', {
         hasRecord: !!lastSuccess,
         hasState: !!lastSuccess?.state,
       });
@@ -107,26 +107,26 @@ async function restoreLastSuccessOnMount() {
 
     // 보드가 이미 채워져 있으면 복원 스킵 (중복 방지)
     if (currentStoryState !== null) {
-      console.log('[Rofan Visualboard] Board already has state, skipping auto-restore');
+      console.log('[Vivid Chat] Board already has state, skipping auto-restore');
       return;
     }
 
     // 복원 실행
-    console.log('[Rofan Visualboard] Auto-restoring last success state on mount');
+    console.log('[Vivid Chat] Auto-restoring last success state on mount');
     const restored = restoreLastSuccessState(lastSuccess, scenarioKey);
     
     if (restored) {
-      console.log('[Rofan Visualboard] Auto-restore succeeded:', {
+      console.log('[Vivid Chat] Auto-restore succeeded:', {
         turnId: lastSuccess.turnId,
         scenarioKey: scenarioKey,
       });
       // 복원 성공 시 currentStoryState/currentTurnId는 restoreLastSuccessState에서 이미 동기화됨
     } else {
-      console.warn('[Rofan Visualboard] Auto-restore failed');
+      console.warn('[Vivid Chat] Auto-restore failed');
     }
   } catch (err) {
     // 복원 실패는 조용히 처리 (사용자에게 노출하지 않음)
-    console.log('[Rofan Visualboard] Auto-restore skipped:', err.message);
+    console.log('[Vivid Chat] Auto-restore skipped:', err.message);
   }
 }
 
@@ -145,7 +145,7 @@ function showDevIndicator() {
 chrome.windows.getCurrent((window) => {
   if (window && window.id) {
     currentWindowId = window.id;
-    console.log('[Rofan Visualboard] Current window ID:', currentWindowId);
+    console.log('[Vivid Chat] Current window ID:', currentWindowId);
   }
 });
 
@@ -196,7 +196,7 @@ function setButtonLoading(isLoading) {
   }
 }
 
-// 에러 메시지 표시 함수
+// 에러 메시지를 sidepanel UI에만 표시하는 함수
 function updateAnalyzeError(errorMessage) {
   lastAnalyzeError = errorMessage;
   
@@ -205,17 +205,33 @@ function updateAnalyzeError(errorMessage) {
   if (!errorContainer) {
     errorContainer = document.createElement('div');
     errorContainer.id = 'analyze-error-container';
-    errorContainer.style.cssText = 'margin-top: 8px; padding: 8px; background-color: #fee; border: 1px solid #fcc; border-radius: 4px; color: #c33; font-size: 12px; line-height: 1.4;';
+    errorContainer.className = 'error-alert';
     
-    // 버튼 다음에 삽입
-    if (analyzeButton && analyzeButton.parentNode) {
-      analyzeButton.parentNode.insertBefore(errorContainer, analyzeButton.nextSibling);
+    // 컨트롤 바 바로 아래에 삽입
+    const controlBar = document.querySelector('.control-bar');
+    if (controlBar && controlBar.parentNode) {
+      controlBar.parentNode.insertBefore(errorContainer, controlBar.nextSibling);
     }
   }
   
   if (errorMessage) {
-    errorContainer.textContent = errorMessage;
+    const errorMsg = '분석에 실패했어요. rofan.ai 채팅 탭을 열어둔 상태인지 확인한 뒤 다시 눌러주세요.';
+    errorContainer.innerHTML = `
+      <div class="error-alert-content">
+        <span>${errorMsg}</span>
+        <button class="error-alert-close" aria-label="닫기">×</button>
+      </div>
+    `;
     errorContainer.style.display = 'block';
+    
+    // 닫기 버튼 이벤트 리스너 추가
+    const closeBtn = errorContainer.querySelector('.error-alert-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        errorContainer.style.display = 'none';
+        lastAnalyzeError = null;
+      });
+    }
   } else {
     errorContainer.style.display = 'none';
   }
@@ -233,7 +249,7 @@ function handleScenarioChange(nextScenarioKey) {
   }
 
   console.log(
-    '[Rofan Visualboard] Scenario changed:',
+    '[Vivid Chat] Scenario changed:',
     currentScenarioKey,
     '→',
     nextScenarioKey
@@ -263,8 +279,8 @@ let lastPostTime = 0;
 // Step2: Storage 헬퍼 함수 (localStorage 직접 사용)
 // ============================================================================
 
-const LAST_SUCCESS_KEY_PREFIX = 'rofan-visualboard-last-success::';
-const CAST_KEY_PREFIX = 'rofan-visualboard-cast::';
+const LAST_SUCCESS_KEY_PREFIX = 'vivid-chat-last-success::';
+const CAST_KEY_PREFIX = 'vivid-chat-cast::';
 
 /**
  * TurnId 계산 (textHash 기반 또는 messageId)
@@ -294,18 +310,18 @@ function loadLastSuccessRecord(scenarioKey) {
     if (record && !record.savedAt && record.timestamp) {
       record.savedAt = record.timestamp; // timestamp를 savedAt으로 복사
       // timestamp는 deprecated이지만 호환성을 위해 유지 (읽기 전용)
-      console.log('[Rofan Visualboard] Migrated timestamp to savedAt for record:', scenarioKey);
+      console.log('[Vivid Chat] Migrated timestamp to savedAt for record:', scenarioKey);
       // 마이그레이션된 레코드 재저장 (선택적)
       try {
         saveLastSuccessRecord(scenarioKey, record);
       } catch (e) {
-        console.warn('[Rofan Visualboard] Failed to save migrated record:', e);
+        console.warn('[Vivid Chat] Failed to save migrated record:', e);
       }
     }
     
     return record;
   } catch (e) {
-    console.warn('[Rofan Visualboard] Failed to load last success record:', e);
+    console.warn('[Vivid Chat] Failed to load last success record:', e);
     return null;
   }
 }
@@ -320,7 +336,7 @@ function saveLastSuccessRecord(scenarioKey, record) {
   try {
     window.localStorage.setItem(key, JSON.stringify(record));
   } catch (e) {
-    console.warn('[Rofan Visualboard] Failed to save last success record:', e);
+    console.warn('[Vivid Chat] Failed to save last success record:', e);
   }
 }
 
@@ -344,7 +360,7 @@ function loadCastStore(scenarioKey) {
     // v1 형식이면 빈 v2 반환 (마이그레이션은 iframe에서 처리)
     return { version: 'v2', charactersById: {}, aliasMap: {} };
   } catch (e) {
-    console.warn('[Rofan Visualboard] Failed to load cast store:', e);
+    console.warn('[Vivid Chat] Failed to load cast store:', e);
     return null;
   }
 }
@@ -367,7 +383,7 @@ function saveCastStore(scenarioKey, castStore) {
     window.localStorage.setItem(key, JSON.stringify(castStore));
     return true;
   } catch (e) {
-    console.warn('[Rofan Visualboard] Failed to save castStore', {
+    console.warn('[Vivid Chat] Failed to save castStore', {
       scenarioKey,
       error: String(e),
     });
@@ -426,7 +442,7 @@ function buildCastHints(castStore) {
     
     // 디버깅: gender 값 및 경로 확인 (DEV_MODE만)
     if (DEV_MODE && (entryGender || profileGender)) {
-      console.log('[Rofan Visualboard] buildCastHints entry:', {
+      console.log('[Vivid Chat] buildCastHints entry:', {
         id: entry.id,
         canonicalName: entry.canonicalName,
         'entry.gender': entryGender,
@@ -447,7 +463,7 @@ function buildCastHints(castStore) {
   
   // 로깅 (전문 금지: 개수 + canonicalName 목록만)
   if (hints.length > 0) {
-    console.log('[Rofan Visualboard] castHints generated', {
+    console.log('[Vivid Chat] castHints generated', {
       count: hints.length,
       characterNames: characterNames.slice(0, 10), // 최대 10개
     });
@@ -477,7 +493,7 @@ function generateUUID() {
  */
 function createGhostCharacter(name) {
   if (!name || typeof name !== 'string') {
-    console.warn('[Rofan Visualboard] createGhostCharacter: invalid name', name);
+    console.warn('[Vivid Chat] createGhostCharacter: invalid name', name);
     name = 'Unknown';
   }
   
@@ -497,7 +513,7 @@ function createGhostCharacter(name) {
  */
 function updateAliasMap(castStore, alias, characterId) {
   if (!castStore || !alias || !characterId) {
-    console.warn('[Rofan Visualboard] updateAliasMap: invalid params', {
+    console.warn('[Vivid Chat] updateAliasMap: invalid params', {
       hasCastStore: !!castStore,
       alias,
       characterId,
@@ -522,7 +538,7 @@ function updateAliasMap(castStore, alias, characterId) {
   // 충돌 처리: Overwrite 정책
   if (existingId && existingId !== characterId) {
     console.warn(
-      `[Rofan Visualboard] aliasMap conflict: "${alias}" was ${existingId}, now ${characterId}`
+      `[Vivid Chat] aliasMap conflict: "${alias}" was ${existingId}, now ${characterId}`
     );
   }
   
@@ -535,7 +551,7 @@ function updateAliasMap(castStore, alias, characterId) {
  */
 function processCharacterMatching(state, castStore, scenarioKey) {
   if (!state || !state.scenes || !Array.isArray(state.scenes) || !castStore) {
-    console.warn('[Rofan Visualboard] processCharacterMatching: invalid params', {
+    console.warn('[Vivid Chat] processCharacterMatching: invalid params', {
       hasState: !!state,
       hasScenes: !!(state && state.scenes),
       hasCastStore: !!castStore,
@@ -569,7 +585,7 @@ function processCharacterMatching(state, castStore, scenarioKey) {
           matchedCount++;
         } else {
           // refId가 있지만 CastStore에 없음 → 경고 + Ghost 생성 (안전장치)
-          console.warn('[Rofan Visualboard] refId not found in CastStore:', character.refId);
+          console.warn('[Vivid Chat] refId not found in CastStore:', character.refId);
           const ghost = createGhostCharacter(character.name);
           updatedCast.charactersById[ghost.id] = ghost;
           updateAliasMap(updatedCast, character.name, ghost.id);
@@ -611,7 +627,7 @@ function processCharacterMatching(state, castStore, scenarioKey) {
   
   // 로깅 (전문 금지: 개수만)
   if (ghostCreatedCount > 0 || matchedCount > 0) {
-    console.log('[Rofan Visualboard] Character matching completed', {
+    console.log('[Vivid Chat] Character matching completed', {
       ghostCreated: ghostCreatedCount,
       matched: matchedCount,
       saved,
@@ -627,13 +643,13 @@ function processCharacterMatching(state, castStore, scenarioKey) {
  */
 function handleCastStoreUpdate(scenarioKey, castStore) {
   if (!scenarioKey || !castStore) {
-    console.warn('[Rofan Visualboard] Invalid cast store update:', { scenarioKey, hasCastStore: !!castStore });
+    console.warn('[Vivid Chat] Invalid cast store update:', { scenarioKey, hasCastStore: !!castStore });
     return;
   }
   
   // scenarioKey가 현재 sidepanel의 scenarioKey와 다르면 무시 (다른 탭/시나리오 오염 방지)
   if (scenarioKey !== currentScenarioKey) {
-    console.warn('[Rofan Visualboard] Ignoring cast store update: scenarioKey mismatch', {
+    console.warn('[Vivid Chat] Ignoring cast store update: scenarioKey mismatch', {
       received: scenarioKey,
       current: currentScenarioKey,
     });
@@ -642,13 +658,13 @@ function handleCastStoreUpdate(scenarioKey, castStore) {
   
   // castStore 검증
   if (!castStore.version || castStore.version !== 'v2') {
-    console.warn('[Rofan Visualboard] Invalid cast store version:', castStore.version);
+    console.warn('[Vivid Chat] Invalid cast store version:', castStore.version);
     return;
   }
   
   // extension castStore에 저장 (안전장치: 함수 존재 여부 확인)
   if (typeof saveCastStore !== 'function') {
-    console.error('[Rofan Visualboard] saveCastStore is not defined! Function definition missing.');
+    console.error('[Vivid Chat] saveCastStore is not defined! Function definition missing.');
     return;
   }
   
@@ -659,7 +675,7 @@ function handleCastStoreUpdate(scenarioKey, castStore) {
   if (DEV_MODE) {
     const sampleCharacter = charactersCount > 0 ? Object.values(castStore.charactersById)[0] : null;
     const storageKey = `${CAST_KEY_PREFIX}${scenarioKey}`;
-    console.log('[Rofan Visualboard] Before saveCastStore:', {
+    console.log('[Vivid Chat] Before saveCastStore:', {
       scenarioKey,
       storageKey,
       charactersCount,
@@ -672,7 +688,7 @@ function handleCastStoreUpdate(scenarioKey, castStore) {
   // 저장 후 즉시 검증: 저장된 값 다시 읽어서 확인
   if (saved) {
     // 중요: 저장 성공 로그는 유지 (핵심 기능 확인용)
-    console.log('[Rofan Visualboard] Cast store synced from iframe', {
+    console.log('[Vivid Chat] Cast store synced from iframe', {
       charactersCount,
     });
     
@@ -681,14 +697,14 @@ function handleCastStoreUpdate(scenarioKey, castStore) {
       const verifyCount = verifyStore?.charactersById ? Object.keys(verifyStore.charactersById).length : 0;
       const verifySample = verifyCount > 0 ? Object.values(verifyStore.charactersById)[0] : null;
       const sampleCharacter = charactersCount > 0 ? Object.values(castStore.charactersById)[0] : null;
-      console.log('[Rofan Visualboard] Cast store verified:', {
+      console.log('[Vivid Chat] Cast store verified:', {
         verifyCount,
         verifySampleGender: verifySample?.gender,
         match: verifyCount === charactersCount && verifySample?.gender === sampleCharacter?.gender,
       });
     }
   } else {
-    console.warn('[Rofan Visualboard] Failed to save cast store from iframe', {
+    console.warn('[Vivid Chat] Failed to save cast store from iframe', {
       scenarioKey,
       charactersCount,
     });
@@ -763,9 +779,9 @@ function restoreLastSuccessState(record, scenarioKey) {
         }],
         activeSceneIndex: 0,
       };
-      console.log('[Rofan Visualboard] Migrated v1 record to v2 format during restore');
+      console.log('[Vivid Chat] Migrated v1 record to v2 format during restore');
     } else {
-      console.warn('[Rofan Visualboard] Cannot restore: invalid state format');
+      console.warn('[Vivid Chat] Cannot restore: invalid state format');
       return false;
     }
   }
@@ -783,7 +799,7 @@ function restoreLastSuccessState(record, scenarioKey) {
   const scenesCount = stateToRestore.scenes?.length || 0;
   const activeSceneIndex = stateToRestore.activeSceneIndex ?? (scenesCount > 0 ? scenesCount - 1 : 0);
   
-  console.log('[Rofan Visualboard] Restored last success state:', {
+  console.log('[Vivid Chat] Restored last success state:', {
     turnId: record.turnId,
     scenarioKey: scenarioKey,
     scenesCount: scenesCount,
@@ -798,7 +814,7 @@ function restoreLastSuccessState(record, scenarioKey) {
  */
 function saveLastSuccessOnAnalysis(scenarioKey, turnId, state, updatedCastStore) {
   if (!scenarioKey || !turnId || !state) {
-    console.warn('[Rofan Visualboard] saveLastSuccessOnAnalysis skipped: missing params', {
+    console.warn('[Vivid Chat] saveLastSuccessOnAnalysis skipped: missing params', {
       hasScenarioKey: !!scenarioKey,
       hasTurnId: !!turnId,
       hasState: !!state,
@@ -820,9 +836,9 @@ function saveLastSuccessOnAnalysis(scenarioKey, turnId, state, updatedCastStore)
     };
     
     saveLastSuccessRecord(scenarioKey, record);
-    console.log('[Rofan Visualboard] Saved last success record:', { turnId, scenarioKey });
+    console.log('[Vivid Chat] Saved last success record:', { turnId, scenarioKey });
   } catch (err) {
-    console.error('[Rofan Visualboard] Failed to save last success record:', err);
+    console.error('[Vivid Chat] Failed to save last success record:', err);
   }
 }
 
@@ -831,7 +847,7 @@ function saveLastSuccessOnAnalysis(scenarioKey, turnId, state, updatedCastStore)
  */
 function saveLastErrorOnFailure(scenarioKey, turnId, errorMessage) {
   if (!scenarioKey || !turnId || !errorMessage) {
-    console.warn('[Rofan Visualboard] saveLastErrorOnFailure skipped: missing params', {
+    console.warn('[Vivid Chat] saveLastErrorOnFailure skipped: missing params', {
       hasScenarioKey: !!scenarioKey,
       hasTurnId: !!turnId,
       hasErrorMessage: !!errorMessage,
@@ -861,9 +877,9 @@ function saveLastErrorOnFailure(scenarioKey, turnId, errorMessage) {
       saveLastSuccessRecord(scenarioKey, record);
     }
     
-    console.log('[Rofan Visualboard] Saved last error:', { turnId, errorMessage, scenarioKey });
+    console.log('[Vivid Chat] Saved last error:', { turnId, errorMessage, scenarioKey });
   } catch (err) {
-    console.error('[Rofan Visualboard] Failed to save last error:', err);
+    console.error('[Vivid Chat] Failed to save last error:', err);
   }
 }
 
@@ -871,7 +887,7 @@ function saveLastErrorOnFailure(scenarioKey, turnId, errorMessage) {
 function postStoryStateToIframe(state, scenarioKey) {
   const iframe = document.getElementById('visualboard-frame');
   if (!iframe || !iframe.contentWindow) {
-    console.warn('[Rofan Visualboard] iframe not ready');
+    console.warn('[Vivid Chat] iframe not ready');
     return false;
   }
 
@@ -892,9 +908,9 @@ function postStoryStateToIframe(state, scenarioKey) {
         }],
         activeSceneIndex: 0,
       };
-      console.log('[Rofan Visualboard] Converted v1 state to v2 before sending to iframe');
+      console.log('[Vivid Chat] Converted v1 state to v2 before sending to iframe');
     } else {
-      console.error('[Rofan Visualboard] Cannot send: state missing scenes');
+      console.error('[Vivid Chat] Cannot send: state missing scenes');
       return false;
     }
   }
@@ -905,14 +921,14 @@ function postStoryStateToIframe(state, scenarioKey) {
   // 중복 전송 방지: 같은 state를 연속으로 보내지 않음
   const stateHash = stateToSend ? JSON.stringify(stateToSend) : null;
   if (stateHash && stateHash === lastPostedStateHash) {
-    console.log('[Rofan Visualboard] Skip postStoryStateToIframe: duplicate state (no-op)');
+    console.log('[Vivid Chat] Skip postStoryStateToIframe: duplicate state (no-op)');
     return 'duplicate'; // Step4 Hotfix: duplicate는 성공(no-op)으로 처리
   }
 
   // 너무 빠른 연속 전송 방지 (100ms 이내 재전송 차단)
   const now = Date.now();
   if (now - lastPostTime < 100) {
-    console.warn('[Rofan Visualboard] Skip postStoryStateToIframe: too frequent (throttled)');
+    console.warn('[Vivid Chat] Skip postStoryStateToIframe: too frequent (throttled)');
     return false;
   }
   lastPostTime = now;
@@ -928,7 +944,7 @@ function postStoryStateToIframe(state, scenarioKey) {
   const activeSceneIndex = stateToSend.activeSceneIndex ?? (scenesCount > 0 ? scenesCount - 1 : 0);
   const locationNames = stateToSend.scenes?.slice(0, 5).map(s => s.location_name || '(없음)').join(', ') || '';
 
-  console.log('[Rofan Visualboard] STORY_STATE_UPDATE posted to iframe:', {
+  console.log('[Vivid Chat] STORY_STATE_UPDATE posted to iframe:', {
       messageId: messageId,
       scenarioKey: finalScenarioKey,
     scenesCount: scenesCount,
@@ -952,10 +968,162 @@ function postStoryStateToIframe(state, scenarioKey) {
   return true;
 }
 
+// ============================================================================
+// BotContext 조회 유틸 (chrome.storage.local)
+// ============================================================================
+
+/**
+ * 현재 탭 URL에서 chatId 추출
+ */
+async function getChatIdFromActiveTab() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (!tabs || tabs.length === 0) return null;
+    
+    const tab = tabs[0];
+    if (!tab.url) return null;
+
+    // URL에서 chatId 추출: /chat/{chatId} 또는 /en/chat/{chatId}
+    const url = new URL(tab.url);
+    const pathMatch = url.pathname.match(/\/(?:en\/)?chat\/([^\/]+)/);
+    return pathMatch ? pathMatch[1] : null;
+  } catch (err) {
+    console.warn('[Vivid Chat] Failed to get chatId from active tab:', err);
+    return null;
+  }
+}
+
+/**
+ * 현재 탭 URL에서 scenarioKey 추출 (기존 함수)
+ */
+async function getScenarioKeyFromActiveTabUrl() {
+  try {
+    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    if (!tabs || tabs.length === 0) return null;
+    
+    const tab = tabs[0];
+    if (!tab.url) return null;
+
+    const url = new URL(tab.url);
+    if (url.hostname === 'rofan.ai') {
+      const path = url.pathname;
+      // /chat/... 또는 /en/chat/... 경로 체크
+      if (path.startsWith('/chat/') || path.startsWith('/en/chat/')) {
+        return `${url.origin}${url.pathname}`;
+      }
+    }
+    return null;
+  } catch (err) {
+    console.warn('[Vivid Chat] Failed to get scenarioKey from active tab:', err);
+    return null;
+  }
+}
+
+/**
+ * chatId 후보군으로부터 botContext 조회
+ * @param {string} primaryChatId - URL에서 추출한 chatId (우선 시도)
+ * @returns {Promise<{charName, persona, worldview, userName, userPersona} | null>}
+ */
+async function getBotContextForChatId(primaryChatId) {
+  if (!primaryChatId) return null;
+
+  // chatId 후보군: URL chatId + __NEXT_DATA__에서 추출 가능한 chatId
+  // 일단 primaryChatId로 시도하고, 실패하면 다른 후보들도 시도
+  const chatIdCandidates = [primaryChatId];
+  
+  // __NEXT_DATA__에서 chatId 후보 추가 시도 (content script에서 이미 저장했을 수 있음)
+  // 여기서는 일단 primaryChatId만 사용하고, 실패 시 재시도 로직으로 처리
+
+  return new Promise((resolve) => {
+    // 모든 후보에 대해 session_map 조회 시도
+    const keysToGet = [];
+    chatIdCandidates.forEach(id => {
+      keysToGet.push(`session_map::${id}`, `chat_user::${id}`);
+    });
+
+    chrome.storage.local.get(keysToGet, (result) => {
+      if (chrome.runtime.lastError) {
+        console.warn('[Vivid Chat] Failed to get session_map/chat_user:', chrome.runtime.lastError);
+        resolve(null);
+        return;
+      }
+
+      // 후보군을 순회하며 botId 찾기
+      let botId = null;
+      let chatUser = null;
+      let resolvedChatId = null;
+
+      for (const id of chatIdCandidates) {
+        const candidateBotId = result[`session_map::${id}`];
+        const candidateChatUser = result[`chat_user::${id}`];
+        
+        if (candidateBotId) {
+          botId = candidateBotId;
+          chatUser = candidateChatUser;
+          resolvedChatId = id;
+          console.log('[Vivid Chat][debug] botContext resolved from chatId:', id);
+          break;
+        }
+      }
+
+      if (!botId) {
+        console.warn('[Vivid Chat] botContext not found for chatIdCandidates:', chatIdCandidates);
+        resolve(null);
+        return;
+      }
+
+      // bot_master에서 persona/worldview 조회
+      chrome.storage.local.get([`bot_master::${botId}`], (botResult) => {
+        if (chrome.runtime.lastError) {
+          console.warn('[Vivid Chat] Failed to get bot_master:', chrome.runtime.lastError);
+          resolve(null);
+          return;
+        }
+
+        const botMaster = botResult[`bot_master::${botId}`];
+        if (!botMaster) {
+          console.warn('[Vivid Chat] botMaster not found for botId:', botId);
+          resolve(null);
+          return;
+        }
+
+        const botContext = {
+          charName: botMaster.botName || null, // ✅ 추가: 캐릭터 이름
+          persona: botMaster.charPersona || null,
+          worldview: botMaster.worldview || null,
+          userName: chatUser?.userName || null,
+          userPersona: chatUser?.userPersona || null,
+        };
+
+        // persona나 worldview 중 하나라도 있으면 반환
+        if (botContext.persona || botContext.worldview || botContext.charName) {
+          console.log('[Vivid Chat][load] botContext loaded', {
+            primaryChatId: primaryChatId,
+            resolvedChatId: resolvedChatId,
+            chatIdCandidates: chatIdCandidates,
+            botId: botId,
+            charName: botContext.charName || null,
+            personaLen: botContext.persona?.length || 0,
+            worldviewLen: botContext.worldview?.length || 0,
+            userName: botContext.userName || null,
+          });
+          resolve(botContext);
+        } else {
+          console.warn('[Vivid Chat] botContext incomplete (no persona/worldview/charName)');
+          resolve(null);
+        }
+      });
+    });
+  });
+}
+
+// ============================================================================
 // 공통 텍스트 분석 함수 (previousState 포함)
+// ============================================================================
+
 async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, messageId = null, allowDuplicate = false, force = false, onSuccess, onError }) {
   if (!text || !text.trim()) {
-    console.warn('[Rofan Visualboard] analyzeText skipped – empty text');
+    console.warn('[Vivid Chat] analyzeText skipped – empty text');
     if (onError) onError('텍스트가 비어있습니다.');
     return;
   }
@@ -963,24 +1131,24 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
   // scenarioKey 확정: 파라미터 → currentScenarioKey → active tab URL 순서로 시도
   let finalScenarioKey = scenarioKey || currentScenarioKey;
   if (!finalScenarioKey) {
-    console.warn('[Rofan Visualboard] scenarioKey is null, trying to get from active tab URL');
+    console.warn('[Vivid Chat] scenarioKey is null, trying to get from active tab URL');
     finalScenarioKey = await getScenarioKeyFromActiveTabUrl();
     if (finalScenarioKey) {
       // 추출한 scenarioKey를 currentScenarioKey에 저장
       currentScenarioKey = finalScenarioKey;
-      console.log('[Rofan Visualboard] scenarioKey set from active tab URL:', finalScenarioKey);
+      console.log('[Vivid Chat] scenarioKey set from active tab URL:', finalScenarioKey);
     }
   }
   
   // 최종적으로도 null이면 에러
   if (!finalScenarioKey) {
-    console.error('[Rofan Visualboard] Cannot determine scenarioKey, aborting analysis');
+    console.error('[Vivid Chat] Cannot determine scenarioKey, aborting analysis');
     if (onError) onError('시나리오 키를 확인할 수 없습니다.');
     return;
   }
 
   // 디버그 로그
-  console.log('[Rofan Visualboard] analyzeTextAndUpdateBoard called', {
+  console.log('[Vivid Chat] analyzeTextAndUpdateBoard called', {
     provider,
     autoUpdateEnabled,
     scenarioKeyParam: scenarioKey,
@@ -1009,7 +1177,7 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
     // boardEmpty면 절대 스킵 금지 → 복원 또는 재분석
     if (isBoardEmpty && lastSuccess && lastSuccess.turnId === turnId && !lastSuccess.lastError) {
       // 복원 가능
-      console.log('[Rofan Visualboard] Board empty, restoring from lastSuccessRecord');
+      console.log('[Vivid Chat] Board empty, restoring from lastSuccessRecord');
       const restored = restoreLastSuccessState(lastSuccess, finalScenarioKey);
       if (restored) {
         // 복원 성공 시 API 호출은 스킵 (선택적)
@@ -1021,13 +1189,13 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
     
     // boardHasState + Auto + sameTurnId + noError → 스킵
     if (!isBoardEmpty && isAuto && lastSuccess && lastSuccess.turnId === turnId && !lastSuccess.lastError) {
-      console.log('[Rofan Visualboard] Skip analyze: same turn already displayed (Auto mode)');
+      console.log('[Vivid Chat] Skip analyze: same turn already displayed (Auto mode)');
       return;
     }
     
     // lastError가 있으면 재시도 (boardEmpty든 boardHasState든)
     if (lastSuccess && lastSuccess.turnId === turnId && lastSuccess.lastError) {
-      console.log('[Rofan Visualboard] Retrying analysis due to lastError:', lastSuccess.lastError);
+      console.log('[Vivid Chat] Retrying analysis due to lastError:', lastSuccess.lastError);
       // 재시도 진행 (스킵 안 함)
     }
     
@@ -1050,7 +1218,7 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
     }
     
     const apiUrl = `${baseUrl}/api/analyze-chat`;
-    console.log('[Rofan Visualboard] API call to:', apiUrl);
+    console.log('[Vivid Chat] API call to:', apiUrl);
     
     // Step4: castHints 생성 (우선순위: castStore > lastSuccess > previousState)
     let castHints = [];
@@ -1080,14 +1248,14 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
         castHints = buildCastHints(castStore);
         castHintsSource = 'castStore';
         // 중요: castHints source 로그는 유지 (핵심 기능 확인용)
-        console.log('[Rofan Visualboard] castHints source: castStore');
+        console.log('[Vivid Chat] castHints source: castStore');
       }
       // 2순위: lastSuccessRecord.cast (Step2에서 저장됨)
       else if (lastSuccess && lastSuccess.cast && lastSuccess.cast.charactersById && Object.keys(lastSuccess.cast.charactersById).length > 0) {
         castStore = lastSuccess.cast;
         castHints = buildCastHints(castStore);
         castHintsSource = 'lastSuccess';
-        console.log('[Rofan Visualboard] castHints source: lastSuccess');
+        console.log('[Vivid Chat] castHints source: lastSuccess');
       }
       
       // 3순위: previousState.scenes에서 추출 (fallback, id 없음)
@@ -1095,12 +1263,26 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
         castHints = buildCastHintsFromPreviousState(currentStoryState);
         castHintsSource = 'previousState';
         if (DEV_MODE) {
-          console.log('[Rofan Visualboard] castHints source: previousState (fallback)');
+          console.log('[Vivid Chat] castHints source: previousState (fallback)');
         }
       }
     } catch (e) {
-      console.warn('[Rofan Visualboard] Failed to build castHints:', e);
+      console.warn('[Vivid Chat] Failed to build castHints:', e);
       castHints = []; // 실패 시 빈 배열 (안전장치)
+    }
+    
+    // botContext 조회 (chatId에서) - 수동/자동 경로 모두에서 항상 수행
+    let botContext = null;
+    try {
+      const chatId = await getChatIdFromActiveTab();
+      if (chatId) {
+        botContext = await getBotContextForChatId(chatId);
+      } else {
+        console.warn('[Vivid Chat] Cannot get chatId from active tab, botContext will be null');
+      }
+    } catch (e) {
+      console.warn('[Vivid Chat] Failed to get botContext:', e);
+      // botContext 실패해도 계속 진행
     }
     
     // 요청 body 구성
@@ -1109,23 +1291,45 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
         previousState: currentStoryState, // ★ 이전 세계 상태 넘기기
     };
     
-      // castHints가 1명 이상이면 반드시 포함, 0명일 때만 생략
-      if (castHints.length > 0) {
-        requestBody.castHints = castHints;
-      }
+    // castHints가 1명 이상이면 반드시 포함, 0명일 때만 생략
+    if (castHints.length > 0) {
+      requestBody.castHints = castHints;
+    }
+    
+    // botContext가 있으면 항상 포함 (조건 제거)
+    if (botContext) {
+      requestBody.botContext = {
+        charName: botContext.charName || undefined, // ✅ 추가: 캐릭터 이름
+        persona: botContext.persona || undefined,
+        worldview: botContext.worldview || undefined,
+        userName: botContext.userName || undefined,
+        userPersona: botContext.userPersona || undefined,
+      };
+    } else {
+      // botContext가 없을 때 명시적으로 처리하고 경고 로그
+      console.warn('[Vivid Chat] botContext is null/undefined, API call will proceed without bot context');
+    }
       
       // 진단 로깅 (전문 텍스트 금지) + gender 값 확인
       const bodyKeys = Object.keys(requestBody);
       const castHintsIncluded = 'castHints' in requestBody;
+      const botContextIncluded = 'botContext' in requestBody;
       const charsCount = castStore?.charactersById ? Object.keys(castStore.charactersById).length : 0;
       const sampleCastHint = castHints.length > 0 ? castHints[0] : null;
       
       // 중요: req 로그는 유지하되 간소화 (핵심 정보만)
+      // source: 'manual' | 'auto' 구분
+      const analyzeSource = source === 'last-ai' || source === 'selection' || force ? 'manual' : 'auto';
       console.log('[Rofan] req', {
         scenarioKey: finalScenarioKey || '(null)',
         chars: charsCount,
         castHints: castHints.length,
         source: castHintsSource,
+        'analyze-call source': analyzeSource,
+        hasBotContext: !!botContext,
+        personaLen: botContext?.persona?.length || 0,
+        worldviewLen: botContext?.worldview?.length || 0,
+        botContext: botContextIncluded ? 'yes' : 'no',
         sampleCastHintGender: sampleCastHint?.gender,
       });
       
@@ -1136,6 +1340,7 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
           currentScenarioKey: currentScenarioKey || '(null)',
           keys: bodyKeys,
           included: castHintsIncluded,
+          botContextIncluded: botContextIncluded,
           sampleCastHintCanonicalName: sampleCastHint?.canonicalName,
           castHintsGenders: castHints.slice(0, 5).map(h => ({ name: h.canonicalName, gender: h.gender })),
         });
@@ -1147,10 +1352,10 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
       body: JSON.stringify(requestBody),
     });
 
-    console.log('[Rofan Visualboard] API response status:', resp.status);
+    console.log('[Vivid Chat] API response status:', resp.status);
 
     if (!resp.ok) {
-      console.warn('[Rofan Visualboard] API error:', resp.status);
+      console.warn('[Vivid Chat] API error:', resp.status);
       analysisError = `API error: ${resp.status}`;
       throw new Error(analysisError);
     }
@@ -1159,7 +1364,7 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
     const newState = data.state;
 
     if (!newState) {
-      console.error('[Rofan Visualboard] API response missing state:', data);
+      console.error('[Vivid Chat] API response missing state:', data);
       analysisError = 'API response missing state';
       throw new Error(analysisError);
     }
@@ -1183,7 +1388,7 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
           }],
           activeSceneIndex: 0,
         };
-        console.log('[Rofan Visualboard] Converted v1 response to v2 format');
+        console.log('[Vivid Chat] Converted v1 response to v2 format');
       } else {
         // v1 형식도 아니면 에러
         analysisError = 'Invalid state format: missing scenes and scene';
@@ -1207,7 +1412,7 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
     const activeSceneIndex = storyState.activeSceneIndex ?? (scenesCount > 0 ? scenesCount - 1 : 0);
     const locationNames = storyState.scenes?.slice(0, 5).map(s => s.location_name || '(없음)').join(', ') || '';
     
-    console.log('[Rofan Visualboard] New StoryState received from API:', {
+    console.log('[Vivid Chat] New StoryState received from API:', {
       turnId: turnId,
       scenesCount: scenesCount,
       activeSceneIndex: activeSceneIndex,
@@ -1223,7 +1428,7 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
         // 업데이트된 CastStore를 lastSuccessRecord.cast에 저장 (다음 분석 시 castHints로 사용)
       } catch (matchingError) {
         // 매칭 실패해도 전체 분석 흐름은 중단하지 않음
-        console.warn('[Rofan Visualboard] Character matching failed (non-fatal):', matchingError);
+        console.warn('[Vivid Chat] Character matching failed (non-fatal):', matchingError);
       }
     }
 
@@ -1232,12 +1437,12 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
     
     // 디버깅: postStoryStateToIframe 반환값 확인 (DEV_MODE만)
     if (DEV_MODE && sent === 'duplicate') {
-      console.log('[Rofan Visualboard] postStoryStateToIframe: duplicate state');
+      console.log('[Vivid Chat] postStoryStateToIframe: duplicate state');
     }
     
     // Step4 Hotfix: duplicate는 성공(no-op)으로 처리
     if (sent === 'duplicate') {
-      console.log('[Rofan Visualboard] State already posted (duplicate, no-op)');
+      console.log('[Vivid Chat] State already posted (duplicate, no-op)');
       // duplicate는 성공으로 처리 (에러 처리하지 않음)
       analysisSucceeded = true;
       if (onSuccess) onSuccess();
@@ -1245,7 +1450,7 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
     }
     
     if (!sent) {
-      console.warn('[Rofan Visualboard] Failed to post state to iframe (error)');
+      console.warn('[Vivid Chat] Failed to post state to iframe (error)');
       analysisError = 'Failed to post state to iframe';
       throw new Error(analysisError);
     }
@@ -1257,8 +1462,8 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
     if (onSuccess) onSuccess();
   } catch (err) {
     // 실제 에러는 콘솔에 상세히 로그 (네트워크 오류 등 디버깅용)
-    console.error('[Rofan Visualboard] analyzeText failed:', err);
-    console.error('[Rofan Visualboard] Error details:', {
+    console.error('[Vivid Chat] analyzeText failed:', err);
+    console.error('[Vivid Chat] Error details:', {
       message: err.message,
       stack: err.stack,
       name: err.name,
@@ -1291,10 +1496,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   
   // ENV_CHANGED 메시지 처리 (Options에서 환경 변경 시)
   if (message.type === 'ENV_CHANGED') {
-    console.log('[Rofan Visualboard] ENV_CHANGED received, reloading sidepanel...');
+    console.log('[Vivid Chat] ENV_CHANGED received, reloading sidepanel...');
     // baseUrl 재로드 및 iframe 재설정
     initializeSidepanel().then(() => {
-      console.log('[Rofan Visualboard] Sidepanel reloaded with new baseUrl');
+      console.log('[Vivid Chat] Sidepanel reloaded with new baseUrl');
       sendResponse({ success: true });
     });
     return true; // 비동기 응답
@@ -1307,7 +1512,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     const preview = (message.text || '').slice(0, 80);
-    console.log('[Rofan Visualboard] TEXT_SELECTED (dev mode):', preview);
+    console.log('[Vivid Chat] TEXT_SELECTED (dev mode):', preview);
 
     if (analysisMode !== 'selection') {
       // 선택 텍스트 모드가 아닐 때는 무시
@@ -1317,7 +1522,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (!message.text || !message.text.trim()) {
       console.warn(
-        '[Rofan Visualboard] TEXT_SELECTED ignored: empty text in selection mode'
+        '[Vivid Chat] TEXT_SELECTED ignored: empty text in selection mode'
       );
       sendResponse({ success: true });
       return;
@@ -1345,7 +1550,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const { provider, text, sourceWindowId, scenarioKey } = message;
 
     console.log(
-      '[Rofan Visualboard] NEW_LAST_AI_TURN received in sidepanel:',
+      '[Vivid Chat] NEW_LAST_AI_TURN received in sidepanel:',
       { provider, windowId: sourceWindowId, scenarioKey }
     );
 
@@ -1354,20 +1559,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // 2) provider 필터
     if (provider !== 'rofan-ai') {
-      console.log('[Rofan Visualboard] Ignoring NEW_LAST_AI_TURN from other provider:', provider);
+      console.log('[Vivid Chat] Ignoring NEW_LAST_AI_TURN from other provider:', provider);
       return;
     }
 
     // 3) 자동 업데이트 토글 체크
     if (!autoUpdateEnabled) {
-      console.log('[Rofan Visualboard] Auto-update disabled, ignoring NEW_LAST_AI_TURN');
+      console.log('[Vivid Chat] Auto-update disabled, ignoring NEW_LAST_AI_TURN');
       return;
     }
 
     // 4) 현재 윈도우와 다른 창에서 온 메시지면 무시
     if (currentWindowId && sourceWindowId !== currentWindowId) {
       console.log(
-        '[Rofan Visualboard] NEW_LAST_AI_TURN from different window, ignoring. current:',
+        '[Vivid Chat] NEW_LAST_AI_TURN from different window, ignoring. current:',
         currentWindowId,
         'source:',
         sourceWindowId
@@ -1385,10 +1590,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       force: false, // 자동 업데이트는 중복 체크 수행
       onSuccess: () => {
         // 자동 업데이트는 조용히 처리 (토스트 없음)
-        console.log('[Rofan Visualboard] Auto-update: board updated');
+        console.log('[Vivid Chat] Auto-update: board updated');
       },
       onError: (error) => {
-        console.error('[Rofan Visualboard] Auto-update failed:', error);
+        console.error('[Vivid Chat] Auto-update failed:', error);
         // 자동 업데이트 실패는 조용히 처리 (토스트 없음)
       },
     });
@@ -1402,12 +1607,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // iframe 로드 완료 확인
 if (iframe) {
   iframe.addEventListener('load', () => {
-    console.log('[Rofan Visualboard] Iframe loaded');
+    console.log('[Vivid Chat] Iframe loaded');
     // 커밋5: iframe 로드 완료 후 자동 복원 시도 (마운트 시 복원이 실패했을 수 있음)
     // 단, 이미 복원되었거나 보드가 채워져 있으면 스킵
     if (currentStoryState === null) {
       restoreLastSuccessOnMount().catch(err => {
-        console.log('[Rofan Visualboard] Auto-restore on iframe load skipped:', err.message);
+        console.log('[Vivid Chat] Auto-restore on iframe load skipped:', err.message);
       });
     }
   });
@@ -1433,7 +1638,7 @@ window.addEventListener('message', (event) => {
   const allowedOrigin = baseUrl; // http://localhost:3001 또는 https://rofan.world
   
   if (event.origin !== allowedOrigin) {
-    console.log('[Rofan Visualboard] Ignoring message: origin mismatch', {
+    console.log('[Vivid Chat] Ignoring message: origin mismatch', {
       received: event.origin,
       expected: allowedOrigin,
       currentBaseUrl: currentBaseUrl,
@@ -1443,13 +1648,13 @@ window.addEventListener('message', (event) => {
 
   const message = event.data;
   if (!message || typeof message !== 'object') {
-    console.log('[Rofan Visualboard] Ignoring message: invalid data format');
+    console.log('[Vivid Chat] Ignoring message: invalid data format');
     return;
   }
 
   // 필터 1: sender가 내 자신이면 무시
   if (message.sender === SENDER_ID) {
-    console.log('[Rofan Visualboard] Ignoring message: sender is myself', SENDER_ID);
+    console.log('[Vivid Chat] Ignoring message: sender is myself', SENDER_ID);
     return;
   }
 
@@ -1459,21 +1664,21 @@ window.addEventListener('message', (event) => {
       // CAST_STORE_UPDATE는 허용 (캐스트 동기화용)
       // 아래에서 처리 계속
     } else {
-      console.log('[Rofan Visualboard] Ignoring message from test-board:', message.type);
+      console.log('[Vivid Chat] Ignoring message from test-board:', message.type);
     return;
     }
   }
 
   // 필터 3: STORY_STATE_UPDATE 또는 CAST_STORE_UPDATE 타입만 처리
   if (message.type !== 'STORY_STATE_UPDATE' && message.type !== 'CAST_STORE_UPDATE') {
-    console.log('[Rofan Visualboard] Ignoring message: not STORY_STATE_UPDATE or CAST_STORE_UPDATE', message.type);
+    console.log('[Vivid Chat] Ignoring message: not STORY_STATE_UPDATE or CAST_STORE_UPDATE', message.type);
     return;
   }
   
   // CAST_STORE_UPDATE 처리 (캐스트 동기화)
   if (message.type === 'CAST_STORE_UPDATE') {
     if (DEV_MODE) {
-      console.log('[Rofan Visualboard] CAST_STORE_UPDATE received:', {
+      console.log('[Vivid Chat] CAST_STORE_UPDATE received:', {
         scenarioKey: message.scenarioKey,
         currentScenarioKey: currentScenarioKey,
         hasCastStore: !!message.castStore,
@@ -1491,7 +1696,7 @@ window.addEventListener('message', (event) => {
   // 필터 4: sender가 없으면 무시 (이건 iframe에서 보낸 메시지가 아님)
   if (!message.sender) {
     console.warn(
-      '[Rofan Visualboard] WARNING: STORY_STATE_UPDATE without sender field - this may cause loop!',
+      '[Vivid Chat] WARNING: STORY_STATE_UPDATE without sender field - this may cause loop!',
       message
     );
     // sender가 없으면 무시 (안전을 위해)
@@ -1501,7 +1706,7 @@ window.addEventListener('message', (event) => {
   // 필터 5: scenarioKey가 현재 시나리오와 다르면 무시
   if (message.scenarioKey && message.scenarioKey !== currentScenarioKey) {
     console.log(
-      '[Rofan Visualboard] Ignoring STORY_STATE_UPDATE: scenarioKey mismatch',
+      '[Vivid Chat] Ignoring STORY_STATE_UPDATE: scenarioKey mismatch',
       { received: message.scenarioKey, current: currentScenarioKey }
     );
     return;
@@ -1512,7 +1717,7 @@ window.addEventListener('message', (event) => {
     const currentStateStr = JSON.stringify(currentStoryState);
     const receivedStateStr = JSON.stringify(message.state);
     if (currentStateStr === receivedStateStr) {
-      console.log('[Rofan Visualboard] Ignoring STORY_STATE_UPDATE: duplicate state');
+      console.log('[Vivid Chat] Ignoring STORY_STATE_UPDATE: duplicate state');
       return;
     }
   }
@@ -1520,7 +1725,7 @@ window.addEventListener('message', (event) => {
   // 여기까지 왔다면 유효한 메시지이지만, sidepanel에서는 다시 analyze를 호출하지 않음
   // 단지 state를 동기화만 함 (이미 iframe에서 처리된 state이므로)
   console.log(
-    '[Rofan Visualboard] Received STORY_STATE_UPDATE from iframe (ignoring to prevent loop)',
+    '[Vivid Chat] Received STORY_STATE_UPDATE from iframe (ignoring to prevent loop)',
     { sender: message.sender, scenarioKey: message.scenarioKey, type: message.type }
   );
 
@@ -1534,21 +1739,21 @@ window.addEventListener('message', (event) => {
 function setupAutoUpdateToggle() {
   const checkbox = document.getElementById('rv-auto-update-toggle');
   if (!checkbox) {
-    console.warn('[Rofan Visualboard] Auto-update toggle checkbox not found');
+    console.warn('[Vivid Chat] Auto-update toggle checkbox not found');
     return;
   }
 
   // 초기 값 동기화
   autoUpdateEnabled = checkbox.checked;
   console.log(
-    '[Rofan Visualboard] Auto-update initial state:',
+    '[Vivid Chat] Auto-update initial state:',
     autoUpdateEnabled
   );
 
   checkbox.addEventListener('change', () => {
     autoUpdateEnabled = checkbox.checked;
     console.log(
-      '[Rofan Visualboard] Auto-update toggle changed:',
+      '[Vivid Chat] Auto-update toggle changed:',
       autoUpdateEnabled
     );
     showToast(
@@ -1565,7 +1770,7 @@ function setupAnalysisModeSelector() {
 
   const modeSelect = document.getElementById('rv-analysis-mode');
   if (!modeSelect) {
-    console.warn('[Rofan Visualboard] Analysis mode select not found');
+    console.warn('[Vivid Chat] Analysis mode select not found');
     return;
   }
 
@@ -1574,7 +1779,7 @@ function setupAnalysisModeSelector() {
 
   modeSelect.addEventListener('change', () => {
     analysisMode = modeSelect.value || 'last-ai';
-    console.log('[Rofan Visualboard] Analysis mode changed:', analysisMode);
+    console.log('[Vivid Chat] Analysis mode changed:', analysisMode);
   });
 }
 
@@ -1584,7 +1789,7 @@ function setupProviderSelector() {
   if (providerSelect) {
     providerSelect.addEventListener('change', (e) => {
       currentProvider = e.target.value;
-      console.log('[Rofan Visualboard] Provider changed:', currentProvider);
+      console.log('[Vivid Chat] Provider changed:', currentProvider);
     });
   }
 }
@@ -1594,11 +1799,11 @@ function toggleDevMode() {
   try {
     const current = localStorage.getItem('rv-dev-mode') === 'true';
     localStorage.setItem('rv-dev-mode', (!current).toString());
-    console.log('[Rofan Visualboard] Dev mode toggled:', !current);
+    console.log('[Vivid Chat] Dev mode toggled:', !current);
     // 페이지 새로고침 안내
     alert(`개발자 모드가 ${!current ? '켜졌습니다' : '꺼졌습니다'}. 사이드패널을 다시 열어주세요.`);
   } catch (e) {
-    console.error('[Rofan Visualboard] Failed to toggle dev mode:', e);
+    console.error('[Vivid Chat] Failed to toggle dev mode:', e);
   }
 }
 
@@ -1606,12 +1811,12 @@ function toggleDevMode() {
 function setupDevTools() {
   const devToolsSection = document.getElementById('dev-tools');
   if (!devToolsSection) {
-    console.warn('[Rofan Visualboard] dev-tools section not found');
+    console.warn('[Vivid Chat] dev-tools section not found');
     return;
   }
 
   if (DEV_MODE) {
-    console.log('[Rofan Visualboard] Dev mode enabled - showing dev tools');
+    console.log('[Vivid Chat] Dev mode enabled - showing dev tools');
     devToolsSection.style.display = 'block';
     devToolsSection.classList.add('visible');
 
@@ -1652,7 +1857,7 @@ function setupDevTools() {
     setupAnalysisModeSelector();
   } else {
     // DEV_MODE가 false일 때 dev-tools 섹션 확실히 숨기기
-    console.log('[Rofan Visualboard] Dev mode disabled - hiding dev tools');
+    console.log('[Vivid Chat] Dev mode disabled - hiding dev tools');
     devToolsSection.style.display = 'none';
     devToolsSection.style.visibility = 'hidden';
     devToolsSection.classList.remove('visible');
@@ -1695,7 +1900,7 @@ function requestLastAiMessageFromContentScript(provider) {
 if (analyzeButton) {
   analyzeButton.addEventListener('click', async (event) => {
     const isShiftClick = event.shiftKey;
-    console.log('[Rofan Visualboard] Analyze last turn clicked', {
+    console.log('[Vivid Chat] Analyze last turn clicked', {
       provider: currentProvider,
       isShiftClick: isShiftClick,
     });
@@ -1715,7 +1920,7 @@ if (analyzeButton) {
       const result = await requestLastAiMessageFromContentScript(currentProvider);
       
       if (!result || !result.text) {
-        console.warn('[Rofan Visualboard] No last AI message text');
+        console.warn('[Vivid Chat] No last AI message text');
         const errorMsg = '최근 턴 분석에 실패했습니다. 잠시 후 다시 시도해주세요.';
         lastAnalyzeError = errorMsg;
         updateAnalyzeError(errorMsg);
@@ -1727,6 +1932,37 @@ if (analyzeButton) {
       // 시나리오 변경 감지 및 보드 리셋
       handleScenarioChange(scenarioKey);
 
+      // botContext를 먼저 로드 (수동 분석 시 보장)
+      let botContext = null;
+      let chatId = null;
+      try {
+        chatId = await getChatIdFromActiveTab();
+        if (chatId) {
+          botContext = await getBotContextForChatId(chatId);
+          if (!botContext) {
+            // 한 번 더 시도
+            console.log('[Vivid Chat] botContext not found, retrying...');
+            await new Promise(resolve => setTimeout(resolve, 500)); // 500ms 대기
+            botContext = await getBotContextForChatId(chatId);
+          }
+        }
+      } catch (e) {
+        console.warn('[Vivid Chat] Failed to load botContext before manual analysis:', e);
+      }
+
+      if (!botContext) {
+        console.warn('[Vivid Chat] botContext is still null after retry, proceeding without bot context', {
+          chatId: chatId || 'null',
+        });
+      } else {
+        console.log('[Vivid Chat] botContext loaded before manual analysis', {
+          chatId: chatId,
+          personaLen: botContext.persona?.length || 0,
+          worldviewLen: botContext.worldview?.length || 0,
+          userName: botContext.userName || null,
+        });
+      }
+
       // 커밋4: Shift+Click이면 무조건 강제 재분석, 일반 클릭이면 보드 상태에 따라 복원/분석
       const isBoardEmpty = currentStoryState === null;
       const shouldForce = isShiftClick; // Shift+Click은 항상 강제 재분석
@@ -1737,7 +1973,7 @@ if (analyzeButton) {
         if (lastSuccess && lastSuccess.state && !lastSuccess.lastError) {
           const turnId = calculateTurnId(text, null);
           if (lastSuccess.turnId === turnId) {
-            console.log('[Rofan Visualboard] Board empty, restoring from lastSuccessRecord (manual click)');
+            console.log('[Vivid Chat] Board empty, restoring from lastSuccessRecord (manual click)');
             const restored = restoreLastSuccessState(lastSuccess, scenarioKey);
             if (restored) {
               lastAnalyzeError = null;
@@ -1769,7 +2005,7 @@ if (analyzeButton) {
         },
       });
     } catch (error) {
-      console.error('[Rofan Visualboard] Error in analyze last turn:', error);
+      console.error('[Vivid Chat] Error in analyze last turn:', error);
       const errorMsg = '최근 턴 분석에 실패했습니다. 잠시 후 다시 시도해주세요.';
       lastAnalyzeError = errorMsg;
       updateAnalyzeError(errorMsg);
@@ -1785,12 +2021,12 @@ if (analyzeButton) {
 function setupResetButton() {
   const resetBtn = document.getElementById('reset-board-btn');
   if (!resetBtn) {
-    console.warn('[Rofan Visualboard] reset-board-btn not found');
+    console.warn('[Vivid Chat] reset-board-btn not found');
     return;
   }
 
   resetBtn.addEventListener('click', () => {
-    console.log('[Rofan Visualboard] Reset board clicked');
+    console.log('[Vivid Chat] Reset board clicked');
     currentStoryState = null;
     currentTurnId = null; // Step2: turnId 리셋
     // lastAnalyzed = null; // Step2: 제거 (lastSuccessRecord로 대체)
@@ -1810,7 +2046,7 @@ function setupResetButton() {
         },
         '*' // 실제 iframe origin (www.rofan.world 또는 rofan.world)과 상관없이 전달
       );
-      console.log('[Rofan Visualboard] RESET_STORY_STATE posted to iframe (reason: user-reset)');
+      console.log('[Vivid Chat] RESET_STORY_STATE posted to iframe (reason: user-reset)');
       showToast('보드가 초기화되었습니다.');
     }
   });
@@ -1826,14 +2062,14 @@ function setupVersionDisplay() {
       versionEl.textContent = `v${extensionVersion}`;
     }
   } catch (err) {
-    console.warn('[Rofan Visualboard] Failed to get extension version:', err);
+    console.warn('[Vivid Chat] Failed to get extension version:', err);
   }
 }
 
 // 초기화 - DOMContentLoaded에서 실행
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', async () => {
-    console.log('[Rofan Visualboard] Side panel DOM loaded');
+    console.log('[Vivid Chat] Side panel DOM loaded');
     await initializeSidepanel(); // baseUrl 로드 및 iframe 설정
     setupVersionDisplay();
     setupProviderSelector();
@@ -1849,7 +2085,7 @@ if (document.readyState === 'loading') {
   });
 } else {
   // DOM이 이미 로드된 경우
-  console.log('[Rofan Visualboard] Side panel DOM already loaded');
+  console.log('[Vivid Chat] Side panel DOM already loaded');
   (async () => {
     await initializeSidepanel(); // baseUrl 로드 및 iframe 설정
   setupVersionDisplay();

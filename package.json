@@ -1,8 +1,8 @@
 {
-  "name": "rofan-visualboard-extension",
+  "name": "vivid-chat-extension",
   "version": "0.2.0",
   "private": true,
-  "description": "Chrome extension for visualizing story states from Rofan.ai chat",
+  "description": "Chrome extension for visualizing story states from Rofan.ai chat (Vivid Chat)",
   "scripts": {
     "version:patch": "node scripts/bumpVersion.mjs patch",
     "version:minor": "node scripts/bumpVersion.mjs minor",
