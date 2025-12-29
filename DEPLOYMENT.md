@@ -1,11 +1,10 @@
 # 배포 가이드
 
-## Vivid Chat v0.2.1 배포
+## Vivid Chat v0.0.1 배포
 
 ### 주요 변경사항
-- Content script 자동 주입 기능 추가
-- "scripting" 권한 추가 (동적 content script 주입용)
-- 첫 턴 분석 실패 문제 해결
+- Rebranded from "Rofan Visualboard" to "Vivid Chat"
+- Initial release version reset to 0.0.1
 
 ### 배포 단계
 
@@ -19,8 +18,8 @@
    ```
 
 2. **확인사항**
-   - `manifest.json` 버전: 0.2.1
-   - `VERSION.md` 버전: 0.2.1
+   - `manifest.json` 버전: 0.0.1
+   - `VERSION.md` 버전: 0.0.1
    - `CHANGELOG.md` 업데이트 확인
 
 3. **배포**
@@ -29,14 +28,14 @@
 
 4. **버전 태그 생성**
    ```bash
-   git tag v0.2.1
-   git push origin v0.2.1
+   git tag v0.0.1
+   git push origin v0.0.1
    ```
 
 5. **GitHub Release 생성**
-   - 태그: v0.2.1
-   - 제목: Vivid Chat v0.2.1
-   - 설명: Content script 자동 주입 및 첫 턴 분석 문제 해결
+   - 태그: v0.0.1
+   - 제목: Vivid Chat v0.0.1
+   - 설명: Initial release - Rebranded from Rofan Visualboard
 
 ### 사용자 업데이트 안내
 - Chrome Extension을 다시 로드해야 합니다

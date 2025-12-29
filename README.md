@@ -2,7 +2,7 @@
 
 소설 텍스트를 분석하여 시각화해주는 Chrome Extension입니다.
 
-**Current Version: v0.2.1**
+**Current Version: v0.0.1**
 
 Compatible with rofan.world v1.2.1+
 

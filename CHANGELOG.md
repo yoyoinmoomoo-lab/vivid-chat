@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.0.1] - 2024-12-XX
+
+### Changed
+- Rebranded from "Rofan Visualboard" to "Vivid Chat"
+- Initial release version reset to 0.0.1
+
 ## [0.2.1] - 2024-12-XX
 
 ### Fixed
