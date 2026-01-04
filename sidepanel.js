@@ -1159,7 +1159,7 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
   });
 
   // Step2: 스킵 정책 재설계
-  // 1) turnId 계산
+  // 1) turnId 계산 (text 기반 해시)
   const turnId = calculateTurnId(text, messageId);
   
   // 2) lastSuccessRecord 로드 (finalScenarioKey 사용)
@@ -1172,7 +1172,7 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
   const isManual = source === 'last-ai' || force;
   const isAuto = source === 'auto' && !force;
   
-  // 5) 스킵 판정 (Step2 상태 머신)
+  // 5) 스킵 판정 (Step2 상태 머신) - turnId 기반 강화
   if (!force) {
     // boardEmpty면 절대 스킵 금지 → 복원 또는 재분석
     if (isBoardEmpty && lastSuccess && lastSuccess.turnId === turnId && !lastSuccess.lastError) {
@@ -1187,10 +1187,23 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
       // 복원 실패 시 재분석 진행
     }
     
+    // ✅ turnId가 바뀌면 절대 no-op 처리하면 안 됨 (새 텍스트면 새 state)
+    const previousTurnId = currentTurnId || null;
+    const turnIdChanged = previousTurnId !== turnId;
+    
     // boardHasState + Auto + sameTurnId + noError → 스킵
-    if (!isBoardEmpty && isAuto && lastSuccess && lastSuccess.turnId === turnId && !lastSuccess.lastError) {
+    if (!isBoardEmpty && isAuto && lastSuccess && lastSuccess.turnId === turnId && !lastSuccess.lastError && !turnIdChanged) {
       console.log('[Vivid Chat] Skip analyze: same turn already displayed (Auto mode)');
       return;
+    }
+    
+    // ✅ turnId가 바뀌었으면 무조건 재분석 (중복 체크 무시)
+    if (turnIdChanged) {
+      console.log('[Vivid Chat] TurnId changed, forcing re-analysis:', {
+        previousTurnId: previousTurnId,
+        newTurnId: turnId,
+      });
+      // 재분석 진행 (스킵 안 함)
     }
     
     // lastError가 있으면 재시도 (boardEmpty든 boardHasState든)
@@ -1361,12 +1374,78 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
     }
 
     const data = await resp.json();
-    const newState = data.state;
-
+    
+    // ✅ 디버깅 로그: 응답 전체 구조 확인
+    console.log('[Vivid Chat] API response received:', {
+      hasOk: 'ok' in data,
+      ok: data.ok,
+      hasState: 'state' in data,
+      hasData: 'data' in data,
+      hasDataState: !!(data.data && 'state' in data.data),
+      responseKeys: Object.keys(data),
+    });
+    
+    // ✅ 표준화된 응답 형식 처리: ok 필드 확인
+    if (data.ok === false) {
+      // 에러 응답 처리
+      const errorInfo = data.error || {};
+      const errorCode = errorInfo.code || 'UNKNOWN_ERROR';
+      const errorMessage = errorInfo.message || '분석 중 오류가 발생했습니다.';
+      const rawPreview = errorInfo.rawPreview;
+      
+      console.error('[Vivid Chat] API returned error response:', {
+        code: errorCode,
+        message: errorMessage,
+        hasRawPreview: !!rawPreview,
+      });
+      
+      // 에러 메시지 생성
+      let userFriendlyMessage = errorMessage;
+      if (errorCode === 'PARSE_ERROR') {
+        userFriendlyMessage = '분석 결과 형식이 올바르지 않아 표시할 수 없어요. 다시 시도해주세요.';
+      } else if (errorCode === 'MODEL_REFUSAL') {
+        userFriendlyMessage = '안전 정책으로 분석이 거절되었어요. (텍스트 일부가 제한될 수 있어요)';
+      } else if (errorCode === 'SCHEMA_ERROR') {
+        userFriendlyMessage = '분석 데이터 구조가 예상과 달라요. 새로고침 후 다시 시도해주세요.';
+      } else if (errorCode === 'EMPTY_RESPONSE') {
+        userFriendlyMessage = '분석 응답이 비어있어요. 다시 시도해주세요.';
+      } else if (errorCode === 'OPENAI_API_ERROR') {
+        userFriendlyMessage = '분석 서비스에 일시적인 문제가 있어요. 잠시 후 다시 시도해주세요.';
+      }
+      
+      analysisError = userFriendlyMessage;
+      
+      // ✅ 보드는 유지하고 에러만 표시 (자동 업데이트는 계속 동작)
+      if (onError) onError(userFriendlyMessage);
+      return; // 보드 업데이트는 하지 않음
+    }
+    
+    // ✅ 성공 응답 처리: 표준화된 형식 { ok: true, data: { state } } 우선 사용
+    let newState = data.data?.state;
+    
+    // TODO: 하위 호환성 fallback (추후 제거 예정)
     if (!newState) {
-      console.error('[Vivid Chat] API response missing state:', data);
+      console.warn('[Vivid Chat] Using fallback state extraction (legacy format). TODO: Remove fallback after migration.');
+      newState = data.state ?? data.data;
+    }
+    
+    // ✅ 디버깅 로그: state 추출 결과
+    console.log('[Vivid Chat] State extracted:', {
+      source: data.data?.state ? 'data.data.state' : (data.state ? 'data.state (fallback)' : 'data.data (fallback)'),
+      hasState: !!newState,
+      hasScenes: !!(newState && Array.isArray(newState.scenes)),
+      scenesCount: newState?.scenes?.length || 0,
+    });
+
+    if (!newState || !Array.isArray(newState.scenes)) {
+      console.error('[Vivid Chat] API response missing state or scenes:', {
+        hasState: !!newState,
+        hasScenes: !!(newState && Array.isArray(newState.scenes)),
+        responseData: data,
+      });
       analysisError = 'API response missing state';
-      throw new Error(analysisError);
+      if (onError) onError('분석 결과를 받을 수 없었어요. 다시 시도해주세요.');
+      return; // 보드 업데이트는 하지 않음
     }
 
     // Step3: scenes[] 우선 처리, v1 변환은 보험용으로만
@@ -1407,16 +1486,21 @@ async function analyzeTextAndUpdateBoard({ source, provider, text, scenarioKey, 
     currentTurnId = turnId; // Step2: turnId 동기화
     finalStoryState = storyState; // 저장용
 
-    // Step3: 로깅 (전문 금지, scenes 정보만)
+    // ✅ 응답 직후 디버깅 로그 (필수)
     const scenesCount = storyState.scenes?.length || 0;
     const activeSceneIndex = storyState.activeSceneIndex ?? (scenesCount > 0 ? scenesCount - 1 : 0);
-    const locationNames = storyState.scenes?.slice(0, 5).map(s => s.location_name || '(없음)').join(', ') || '';
+    const locationNames = storyState.scenes?.slice(0, 5).map(s => s.location_name || s.summary || '(없음)').join(', ') || '';
     
     console.log('[Vivid Chat] New StoryState received from API:', {
       turnId: turnId,
       scenesCount: scenesCount,
       activeSceneIndex: activeSceneIndex,
       locationNames: scenesCount > 5 ? locationNames + '...' : locationNames,
+      scenes: storyState.scenes?.map(s => ({
+        locationName: s.location_name || '(없음)',
+        summary: s.summary?.slice(0, 50) || '(없음)',
+        charactersCount: s.characters?.length || 0,
+      })) || [],
     });
 
     // Step4 단계 5: 캐릭터 매칭 처리 (Ghost 생성 및 aliasMap 업데이트)
@@ -1541,50 +1625,85 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === 'NEW_LAST_AI_TURN') {
-    // sourceWindowId가 없으면 content.js에서 직접 온 1차 메시지이므로 무시
+    // ✅ 디버깅 로그: 수신 정보
+    console.log('[Vivid Chat] NEW_LAST_AI_TURN received in sidepanel:', {
+      hasSourceWindowId: !!message.sourceWindowId,
+      sourceWindowId: message.sourceWindowId,
+      currentWindowId: currentWindowId,
+      provider: message.provider,
+      scenarioKey: message.scenarioKey,
+      currentScenarioKey: currentScenarioKey,
+      hasUserText: !!message.userText,
+      hasAiText: !!message.aiText,
+      messageKeys: Object.keys(message),
+    });
+
+    // ✅ 필터 1: sourceWindowId가 없으면 content.js에서 직접 온 1차 메시지이므로 무시
     if (!message.sourceWindowId) {
-      // content.js에서 직접 날아온 1차 메시지는 무시
+      console.log('[Vivid Chat] Filtered: missing sourceWindowId (direct from content.js)');
       return;
     }
 
-    const { provider, text, sourceWindowId, scenarioKey } = message;
+    const { provider, text, userText, aiText, sourceWindowId, scenarioKey } = message;
 
-    console.log(
-      '[Vivid Chat] NEW_LAST_AI_TURN received in sidepanel:',
-      { provider, windowId: sourceWindowId, scenarioKey }
-    );
+    // ✅ 필터 2: provider 필터
+    if (provider !== 'rofan-ai') {
+      console.log('[Vivid Chat] Filtered: wrong provider', { provider, expected: 'rofan-ai' });
+      return;
+    }
 
-    // 1) 시나리오 변경 감지 및 보드 리셋
+    // ✅ 필터 3: 자동 업데이트 토글 체크
+    if (!autoUpdateEnabled) {
+      console.log('[Vivid Chat] Filtered: auto-update disabled');
+      return;
+    }
+
+    // ✅ 필터 4: 시나리오 변경 감지 및 보드 리셋
     handleScenarioChange(scenarioKey);
 
-    // 2) provider 필터
-    if (provider !== 'rofan-ai') {
-      console.log('[Vivid Chat] Ignoring NEW_LAST_AI_TURN from other provider:', provider);
-      return;
-    }
-
-    // 3) 자동 업데이트 토글 체크
-    if (!autoUpdateEnabled) {
-      console.log('[Vivid Chat] Auto-update disabled, ignoring NEW_LAST_AI_TURN');
-      return;
-    }
-
-    // 4) 현재 윈도우와 다른 창에서 온 메시지면 무시
+    // ✅ 필터 5: 현재 윈도우와 다른 창에서 온 메시지면 무시
     if (currentWindowId && sourceWindowId !== currentWindowId) {
-      console.log(
-        '[Vivid Chat] NEW_LAST_AI_TURN from different window, ignoring. current:',
+      console.log('[Vivid Chat] Filtered: window mismatch', {
         currentWindowId,
-        'source:',
-        sourceWindowId
-      );
+        sourceWindowId,
+        reason: 'different_window',
+      });
       return;
     }
 
-    // 5) 실제 분석 호출
+    // ✅ 필터 통과 로그
+    console.log('[Vivid Chat] NEW_LAST_AI_TURN passed all filters, proceeding to analysis');
+
+    // ✅ 5) User+AI 세트를 합쳐서 분석 텍스트 생성
+    let combinedText = text; // 하위 호환성: 기존 text 필드 우선
+    
+    if (userText && aiText) {
+      // User+AI 세트가 있으면 합쳐서 전달
+      combinedText = [
+        userText ? `[USER]\n${userText}` : "",
+        aiText ? `[AI]\n${aiText}` : "",
+      ].filter(Boolean).join("\n\n");
+    } else if (aiText) {
+      // AI만 있으면 AI만 사용
+      combinedText = `[AI]\n${aiText}`;
+    } else if (userText) {
+      // User만 있으면 User만 사용 (드문 케이스)
+      combinedText = `[USER]\n${userText}`;
+    }
+
+    // ✅ 6) 자동업데이트 중복 방지 (2차 가드)
+    const analyzeKey = `${scenarioKey}::${combinedText.slice(0, 100)}`;
+    if (window.__vividLastAutoAnalyzeKey === analyzeKey) {
+      console.log('[Vivid Chat] Skip auto-update: duplicate key');
+      return;
+    }
+    window.__vividLastAutoAnalyzeKey = analyzeKey;
+
+    // 7) 실제 분석 호출
     analyzeTextAndUpdateBoard({
       source: 'auto',
       provider: 'rofan-ai',
-      text: text,
+      text: combinedText,
       scenarioKey: scenarioKey,
       messageId: null, // messageId가 있다면 여기에 전달
       force: false, // 자동 업데이트는 중복 체크 수행
@@ -1598,6 +1717,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       },
     });
 
+    return;
+  }
+
+  if (message.type === 'AUTO_UPDATE_ERROR') {
+    const { provider, reason, message: errorMessage } = message;
+
+    console.warn('[Vivid Chat] AUTO_UPDATE_ERROR received:', { provider, reason, errorMessage });
+
+    // 1) provider 필터
+    if (provider !== 'rofan-ai') {
+      console.log('[Vivid Chat] Ignoring AUTO_UPDATE_ERROR from other provider:', provider);
+      return;
+    }
+
+    // 2) 자동 업데이트 토글 OFF
+    autoUpdateEnabled = false;
+    
+    // 3) UI에 토글 상태 반영
+    const autoUpdateCheckbox = document.getElementById('auto-update-toggle');
+    if (autoUpdateCheckbox) {
+      autoUpdateCheckbox.checked = false;
+    }
+
+    // 4) 에러 메시지 표시
+    const displayMessage = errorMessage || "자동 업데이트 연결이 끊어졌어요. 로판AI 탭을 새로고침한 뒤 다시 켜주세요.";
+    updateAnalyzeError(displayMessage);
+    showToast(displayMessage, 'error');
+
+    console.log('[Vivid Chat] Auto-update disabled due to error:', reason);
     return;
   }
 
@@ -1637,7 +1785,19 @@ window.addEventListener('message', (event) => {
   const baseUrl = currentBaseUrl || 'https://rofan.world'; // 기본값: prod
   const allowedOrigin = baseUrl; // http://localhost:3001 또는 https://rofan.world
   
-  if (event.origin !== allowedOrigin) {
+  // www. 서브도메인을 무시하고 비교 (www.rofan.world === rofan.world)
+  const normalizeOrigin = (origin) => {
+    if (!origin) return origin;
+    // www. 서브도메인 제거
+    return origin.replace(/^https?:\/\/www\./, (match) => {
+      return match.replace('www.', '');
+    });
+  };
+  
+  const normalizedReceived = normalizeOrigin(event.origin);
+  const normalizedExpected = normalizeOrigin(allowedOrigin);
+  
+  if (normalizedReceived !== normalizedExpected) {
     console.log('[Vivid Chat] Ignoring message: origin mismatch', {
       received: event.origin,
       expected: allowedOrigin,
@@ -1886,6 +2046,8 @@ function requestLastAiMessageFromContentScript(provider) {
         if (response.text) {
           resolve({
             text: response.text,
+            userText: response.userText, // User+AI 세트 지원
+            aiText: response.aiText, // User+AI 세트 지원
             scenarioKey: response.scenarioKey,
           });
         } else {
@@ -1927,7 +2089,24 @@ if (analyzeButton) {
         return;
       }
 
-      const { text, scenarioKey } = result;
+      const { text, userText, aiText, scenarioKey } = result;
+
+      // ✅ User+AI 세트를 합쳐서 분석 텍스트 생성
+      let combinedText = text; // 하위 호환성: 기존 text 필드 우선
+      
+      if (userText && aiText) {
+        // User+AI 세트가 있으면 합쳐서 전달
+        combinedText = [
+          userText ? `[USER]\n${userText}` : "",
+          aiText ? `[AI]\n${aiText}` : "",
+        ].filter(Boolean).join("\n\n");
+      } else if (aiText) {
+        // AI만 있으면 AI만 사용
+        combinedText = `[AI]\n${aiText}`;
+      } else if (userText) {
+        // User만 있으면 User만 사용 (드문 케이스)
+        combinedText = `[USER]\n${userText}`;
+      }
 
       // 시나리오 변경 감지 및 보드 리셋
       handleScenarioChange(scenarioKey);
@@ -1963,12 +2142,13 @@ if (analyzeButton) {
         });
       }
 
+      // ✅ 수동 분석은 항상 force: true (캐시 무시하고 최신 DOM 기반으로 재분석)
       // 커밋4: Shift+Click이면 무조건 강제 재분석, 일반 클릭이면 보드 상태에 따라 복원/분석
       const isBoardEmpty = currentStoryState === null;
-      const shouldForce = isShiftClick; // Shift+Click은 항상 강제 재분석
+      const shouldForce = true; // ✅ 수동 분석은 항상 force: true
       
-      if (!shouldForce && isBoardEmpty) {
-        // 일반 클릭 + 보드 비어있음 → 복원 우선 시도
+      if (!isShiftClick && isBoardEmpty) {
+        // 일반 클릭 + 보드 비어있음 → 복원 우선 시도 (force: true지만 복원 시도는 허용)
         const lastSuccess = loadLastSuccessRecord(scenarioKey);
         if (lastSuccess && lastSuccess.state && !lastSuccess.lastError) {
           const turnId = calculateTurnId(text, null);
@@ -1989,10 +2169,10 @@ if (analyzeButton) {
       await analyzeTextAndUpdateBoard({
         source: 'last-ai',
         provider: currentProvider,
-        text: text,
+        text: combinedText, // ✅ User+AI 합본 사용
         scenarioKey: scenarioKey,
         messageId: null, // messageId가 있다면 여기에 전달
-        force: shouldForce, // Shift+Click이면 강제 재분석, 일반 클릭이면 스킵 정책 따름
+        force: shouldForce, // ✅ 수동 분석은 항상 force: true
         onSuccess: () => {
           lastAnalyzeError = null;
           updateAnalyzeError(null);

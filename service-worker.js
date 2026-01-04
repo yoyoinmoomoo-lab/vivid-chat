@@ -204,73 +204,91 @@ function installMainWorldHook() {
     if (isCandidateUrl) {
       console.log('[Rofan][hook] candidate hit:', urlString);
 
+      // ✅ CreateMessage는 request body가 JSON이 아닐 수 있으므로 JSON 파싱 시도 스킵
+      const isCreateMessage = urlString.includes('/api/chat/CreateMessage');
+      if (isCreateMessage) {
+        // CreateMessage는 JSON 파싱 시도하지 않고 원본 fetch만 반환
+        return originalFetch.apply(this, args);
+      }
+
       // 원본 fetch 호출
       const response = await originalFetch.apply(this, args);
 
-      // 5) hit 후보는 응답을 clone().json() 시도
-      response.clone().json().then((json) => {
-        try {
-          // pageProps 파싱 (json.pageProps 또는 json.props?.pageProps)
-          const pageProps = json.pageProps || json.props?.pageProps;
-          
-          if (!pageProps) {
-            console.log('[Rofan][hook] candidate has no pageProps, skipping');
-            return; // pageProps 없으면 스킵
+      // ✅ 5) Content-Type 확인 후 JSON 파싱 시도 (노이즈 제거)
+      const contentType = response.headers?.get('content-type') || '';
+      const isJsonResponse = contentType.toLowerCase().includes('application/json');
+
+      if (isJsonResponse) {
+        // JSON 응답일 때만 파싱 시도
+        response.clone().json().then((json) => {
+          try {
+            // pageProps 파싱 (json.pageProps 또는 json.props?.pageProps)
+            const pageProps = json.pageProps || json.props?.pageProps;
+            
+            if (!pageProps) {
+              console.log('[Rofan][hook] candidate has no pageProps, skipping');
+              return; // pageProps 없으면 스킵
+            }
+
+            // 필드 추출 (fallback 규칙 적용)
+            const chatId = pageProps.chatId || pageProps.oriChatData?.chat_id;
+            const botDetail = pageProps.botDetail || pageProps.oriBotDetail;
+            const oriChatData = pageProps.oriChatData;
+
+            if (!chatId || !botDetail) {
+              console.log('[Rofan][hook] candidate missing chatId or botDetail, skipping');
+              return; // 필수 필드 없으면 스킵
+            }
+
+            const botId = botDetail.bot_id || oriChatData?.bot_id;
+            const botName = botDetail.char || pageProps.oriBotDetail?.char;
+            const charPersona = botDetail.char_persona || pageProps.oriBotDetail?.char_persona;
+            const worldview = botDetail.worldview || pageProps.oriBotDetail?.worldview;
+
+            if (!botId) {
+              console.log('[Rofan][hook] candidate missing botId, skipping');
+              return; // botId 없으면 스킵
+            }
+
+            // 6) 민감정보 필터: cookies/userData/email/session-token 절대 포함 금지
+            // payload 구성 시 민감 정보는 제외
+            const payload = {
+              chatId: String(chatId),
+              botId: String(botId),
+              botName: botName ? String(botName) : undefined,
+              charPersona: charPersona ? String(charPersona) : undefined,
+              worldview: worldview ? String(worldview) : undefined,
+              userName: oriChatData?.user ? String(oriChatData.user) : undefined,
+              userPersona: oriChatData?.user_persona ? String(oriChatData.user_persona) : undefined,
+              updatedAt: Date.now(),
+            };
+
+            // window.postMessage로 content script에 전달
+            window.postMessage({
+              type: 'ROFAN_NEXT_DATA',
+              payload: payload,
+            }, '*');
+
+            // 로그 (민감 정보 제외)
+            console.log('[Rofan][hook] next-data hit', {
+              chatId: payload.chatId,
+              botId: payload.botId,
+              personaLen: payload.charPersona?.length || 0,
+              worldviewLen: payload.worldview?.length || 0,
+            });
+          } catch (err) {
+            // JSON 구조 파싱 실패 (이미 JSON이지만 구조가 다름)
+            console.debug('[Rofan][hook] Failed to parse candidate response structure:', err);
           }
-
-          // 필드 추출 (fallback 규칙 적용)
-          const chatId = pageProps.chatId || pageProps.oriChatData?.chat_id;
-          const botDetail = pageProps.botDetail || pageProps.oriBotDetail;
-          const oriChatData = pageProps.oriChatData;
-
-          if (!chatId || !botDetail) {
-            console.log('[Rofan][hook] candidate missing chatId or botDetail, skipping');
-            return; // 필수 필드 없으면 스킵
-          }
-
-          const botId = botDetail.bot_id || oriChatData?.bot_id;
-          const botName = botDetail.char || pageProps.oriBotDetail?.char;
-          const charPersona = botDetail.char_persona || pageProps.oriBotDetail?.char_persona;
-          const worldview = botDetail.worldview || pageProps.oriBotDetail?.worldview;
-
-          if (!botId) {
-            console.log('[Rofan][hook] candidate missing botId, skipping');
-            return; // botId 없으면 스킵
-          }
-
-          // 6) 민감정보 필터: cookies/userData/email/session-token 절대 포함 금지
-          // payload 구성 시 민감 정보는 제외
-          const payload = {
-            chatId: String(chatId),
-            botId: String(botId),
-            botName: botName ? String(botName) : undefined,
-            charPersona: charPersona ? String(charPersona) : undefined,
-            worldview: worldview ? String(worldview) : undefined,
-            userName: oriChatData?.user ? String(oriChatData.user) : undefined,
-            userPersona: oriChatData?.user_persona ? String(oriChatData.user_persona) : undefined,
-            updatedAt: Date.now(),
-          };
-
-          // window.postMessage로 content script에 전달
-          window.postMessage({
-            type: 'ROFAN_NEXT_DATA',
-            payload: payload,
-          }, '*');
-
-          // 로그 (민감 정보 제외)
-          console.log('[Rofan][hook] next-data hit', {
-            chatId: payload.chatId,
-            botId: payload.botId,
-            personaLen: payload.charPersona?.length || 0,
-            worldviewLen: payload.worldview?.length || 0,
-          });
-        } catch (err) {
-          console.warn('[Rofan][hook] Failed to parse candidate response:', err);
-        }
-      }).catch((err) => {
-        // JSON 파싱 실패
-        console.warn('[Rofan][hook] json parse failed', urlString, err);
-      });
+        }).catch((err) => {
+          // JSON 파싱 실패 (Content-Type은 JSON이지만 실제로는 JSON이 아님)
+          // debug 레벨로 낮춰서 노이즈 제거
+          console.debug('[Rofan][hook] json parse failed (non-JSON body):', urlString, err?.message || err);
+        });
+      } else {
+        // JSON이 아닌 응답은 조용히 스킵 (노이즈 제거)
+        // 예: FormData, text/plain, multipart/form-data 등
+      }
 
       return response;
     }
@@ -356,19 +374,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'NEW_LAST_AI_TURN') {
     const tabId = sender.tab?.id;
     const windowId = sender.tab?.windowId;
-    console.log('[Vivid Chat][service-worker] NEW_LAST_AI_TURN from tab', tabId, 'window', windowId);
+    
+    // ✅ 디버깅 로그: 수신 정보
+    console.log('[Vivid Chat][service-worker] NEW_LAST_AI_TURN received:', {
+      tabId,
+      windowId,
+      messageKeys: Object.keys(message),
+      hasUserText: !!message.userText,
+      hasAiText: !!message.aiText,
+      scenarioKey: message.scenarioKey,
+    });
 
-    // sidepanel 쪽에서 필터링할 수 있도록 windowId를 붙여서 다시 브로드캐스트
-    chrome.runtime.sendMessage({
+    // ✅ sidepanel 쪽에서 필터링할 수 있도록 windowId를 붙여서 다시 브로드캐스트
+    // 모든 필드(userText, aiText, scenarioKey 등)를 포함하여 전달
+    const forwardPayload = {
       type: 'NEW_LAST_AI_TURN',
       provider: message.provider,
       text: message.text,
+      userText: message.userText,
+      aiText: message.aiText,
+      chatId: message.chatId,
+      scenarioKey: message.scenarioKey,
+      source: message.source,
       sourceTabId: tabId,
-      sourceWindowId: windowId,
+      sourceWindowId: windowId, // ✅ 핵심: windowId 주입
+    };
+
+    // ✅ 디버깅 로그: 중계 payload 최종 형태
+    console.log('[Vivid Chat][service-worker] Forwarding NEW_LAST_AI_TURN:', {
+      payloadKeys: Object.keys(forwardPayload),
+      sourceWindowId: forwardPayload.sourceWindowId,
+      scenarioKey: forwardPayload.scenarioKey,
     });
 
-    // async response 필요 없음
-    return false;
+    // sidepanel로 메시지 전송 (fire-and-forget)
+    try {
+      chrome.runtime.sendMessage(forwardPayload, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn('[Vivid Chat][service-worker] Failed to forward NEW_LAST_AI_TURN:', chrome.runtime.lastError.message);
+        }
+      });
+    } catch (e) {
+      console.warn('[Vivid Chat][service-worker] Exception forwarding NEW_LAST_AI_TURN:', e);
+    }
+
+    // ✅ content script에 ack 응답 (포트 유지)
+    sendResponse({ ok: true, forwarded: true });
+    return true; // async response를 위해 true 반환
   }
   
   // Side panel로부터 마지막 AI 메시지 요청
